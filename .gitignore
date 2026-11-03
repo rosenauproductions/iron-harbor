@@ -1,0 +1,5 @@
+build/
+shots/
+dist-bundle/
+*.bmp
+ironharbor.cfg

@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Iron Harbor</title>
+<style>
+html,body{margin:0;height:100%;background:#020610;overflow:hidden;color:#8fd4ff;font:16px/1.4 monospace}
+canvas{display:block;width:100vw;height:100vh;outline:none}
+#start{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;background:#020610;cursor:pointer;text-align:center}
+#start h1{font-size:56px;letter-spacing:6px;color:#50d2ff;margin:0 0 8px;font-weight:normal}
+#start p{margin:6px;color:#9ab}
+#start b{color:#ffe678}
+#fs{position:fixed;right:10px;bottom:10px;opacity:.35;background:none;border:1px solid #4ad;color:#8fd4ff;padding:4px 8px;cursor:pointer}
+</style></head><body>
+<canvas id="canvas" tabindex="0" oncontextmenu="event.preventDefault()"></canvas>
+<div id="start"><h1>IRON HARBOR</h1><p>NAVAL STRATEGY FOR 1-4 ADMIRALS</p><p id="msg">LOADING...</p>
+<p style="margin-top:28px">XBOX / USB PADS: PLUG IN AND PRESS A &nbsp;·&nbsp; KEYBOARD + MOUSE: ENTER TO JOIN</p>
+<p style="font-size:12px;color:#567">WII REMOTES WORK IN THE BATOCERA VERSION</p></div>
+<button id="fs" onclick="document.documentElement.requestFullscreen&&document.documentElement.requestFullscreen()">FULL SCREEN</button>
+<script>
+var ready=false,go=false;
+function begin(){ if(!ready||go) return; go=true; document.getElementById('start').style.display='none'; document.getElementById('canvas').focus(); Module._ih_main(); }
+var Module={canvas:document.getElementById('canvas'),print:function(t){console.log(t)},printErr:function(t){console.log(t)},
+ onRuntimeInitialized:function(){ready=true;document.getElementById('msg').innerHTML='<b>CLICK OR PRESS ANY KEY TO START</b>';}};
+document.getElementById('start').addEventListener('click',begin);
+window.addEventListener('keydown',function(e){ if(!go) begin(); });
+window.addEventListener('gamepadconnected',function(){ var m=document.getElementById('msg'); if(ready&&!go) m.innerHTML='<b>PAD FOUND - CLICK OR PRESS ANY KEY TO START</b>'; });
+</script>
+<script async type="text/javascript" src="index.js?v=20261103113053"></script>
+</body></html>
+
+

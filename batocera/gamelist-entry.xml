@@ -1,0 +1,12 @@
+	<!-- Paste inside <gameList> in roms/ports/gamelist.xml (with EmulationStation closed, or it rewrites the file on exit) -->
+	<game>
+		<path>./IronHarbor.sh</path>
+		<name>Iron Harbor</name>
+		<desc>Naval strategy for 1-4 admirals. Form fleets, lay hidden minefields, fight close battles at sea and sail your carrier or troop transport into an enemy harbor. Local players and CPU admirals, free for all or 2v2. Xbox pads and Wii remotes.</desc>
+		<image>./images/IronHarbor-image.png</image>
+		<thumbnail>./images/IronHarbor-thumb.png</thumbnail>
+		<marquee>./images/IronHarbor-marquee.png</marquee>
+		<developer>Rosenau Productions</developer>
+		<genre>Strategy</genre>
+		<players>1-4</players>
+	</game>
