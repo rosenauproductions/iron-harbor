@@ -117,6 +117,13 @@ static void stepPlane(Battle& b, int bi, Shot& sh, float dt) {
         if (k >= 1) { sh.st = 1; AU.play(SND_TORP, 0.25f, 0, 1.8f, 0); }
         return;
     }
+    if (sh.st == 3) {   // shot down: spiral into the sea
+        sh.ang += 5 * dt; sh.spd *= std::pow(0.5f, dt); sh.p += fromAng(sh.ang) * sh.spd * dt; sh.alt -= dt * 0.6f;
+        if (R.f() < dt * 20) addPart(bi, P_SMOKE, sh.p, V2(R.range(-5, 5), R.range(-5, 5)), 1.2f, Col(60, 60, 70), 3, 10);
+        if (sh.alt <= 0) { splash(bi, sh.p, 10); AU.play(SND_SPLASH, 0.35f, 0, 1.3f); sh.dead = true; }
+        return;
+    }
+    sh.cool -= dt;
     sh.alt = std::min(1.f, sh.alt + dt * 0.8f);
     if (sh.st == 1) {
         if (sh.tgt >= 0 && !bAlive(b.ships[sh.tgt])) sh.tgt = -1;   // the target sank: bomb where it was
@@ -357,6 +364,21 @@ static void stepBattle(int bi, float dt) {
             for (int k = 0; k < (int)b.ships.size(); k++) if (b.ships[k].side != sh.side && bAlive(b.ships[k]) && hullHit(b.ships[k], sh.p, 3)) { bDamage(b, bi, k, sh.dmg); sh.dead = true; ring(bi, sh.p, 4, 40, C_WHITE, 0.5f); break; }
             if (!sh.dead && (bLandDist(b, sh.p) < 0 || sh.gone > sh.range || sh.p.x < 0 || sh.p.y < 0 || sh.p.x > BW || sh.p.y > BH)) { sh.dead = true; splash(bi, sh.p, 8); }
         }
+    }
+    // dogfights: enemy planes that cross paths in the air trade fire; each may be shot down
+    for (size_t i = 0; i < b.shots.size(); i++) for (size_t j = i + 1; j < b.shots.size(); j++) {
+        Shot& a = b.shots[i]; Shot& c = b.shots[j];
+        if (!a.plane || !c.plane || a.dead || c.dead || a.side == c.side || a.wait > 0 || c.wait > 0) continue;
+        if (a.st < 1 || a.st > 2 || c.st < 1 || c.st > 2 || a.alt < 0.6f || c.alt < 0.6f || a.cool > 0 || c.cool > 0) continue;
+        if (dist(a.p, c.p) > 48) continue;
+        a.cool = c.cool = 3;
+        for (int t = 0; t < 6; t++) { V2 q = a.p + (c.p - a.p) * R.f(); addPart(bi, P_SPARK, q, fromAng(R.range(0, 6.28f)) * 40, 0.3f, Col(255, 230, 140)); }
+        AU.play(SND_HIT, 0.4f, 0, 1.6f, 0);
+        for (Shot* pl : { &a, &c }) if (R.f() < 0.35f) {
+            pl->st = 3; explode(bi, pl->p, 6, Col(255, 180, 90));
+            printf("battle %d: dogfight - a P%d plane was shot down\n", bi, b.ships[pl->shooter].owner + 1);
+        }
+        printf("battle %d: dogfight\n", bi);
     }
     b.shots.erase(std::remove_if(b.shots.begin(), b.shots.end(), [](const Shot& s) { return s.dead; }), b.shots.end());
     // end?

@@ -29,7 +29,8 @@ Original naval strategy/battle game by Rosenau Productions for the Batocera box 
   battleship 3 (triangle), destroyer 2, carrier 2 planes, sub 2 bow tubes, PT 2 side tubes, others 1; salvo damage = the ship's damage.
   The reticles show the group; RT/LT (right stick, Wii +/-, keyboard T/F) open or tighten it.
   Carrier: planes roll down the deck, fly to the target, bomb, fly back and land; no new strike until both are back.
-  Crosshair on an enemy ship = TARGET LOCKED: the planes chase it, but a fast, nimble ship can still dodge (up to ~60%). Shells land on the crosshair; torpedoes hit anything on their path.
+  Crosshair on an enemy ship = TARGET LOCKED: the planes chase it, but a fast, nimble ship can still dodge (up to ~60%).
+  Two carriers' planes that cross paths in the air dogfight: each has a 35% chance to be shot down (spirals into the sea); 3 s before they can tangle again. Shells land on the crosshair; torpedoes hit anything on their path.
   Land: 12 HP every 2 s. RETREAT: 15 s alarm, then the fleet slips away.
 - Win: sail the carrier or the troop transport into an enemy harbor (any ship, once both are sunk). Captured = out.
   Free-for-all or 2v2 (P1+P3 vs P2+P4). Last admiral (or team) standing wins.

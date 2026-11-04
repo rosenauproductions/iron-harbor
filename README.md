@@ -12,7 +12,7 @@ Original game by Rosenau Productions. C++17 + SDL2, vector art drawn in code, sy
   the others sit still; B / Wii 1 picks the next ship. Hold to aim. (4 Nov)
 - Salvos (4 Nov): one shot per gun mount from its own turret, one reticle each (battleship 3, destroyer 2, sub/PT 2 tubes);
   RT/LT (Wii +/-, keys T/F) open or tighten the group. Carrier = air strike: 2 planes roll off the deck, bomb, fly back and
-  land; crosshair on a ship locks it (a fast, nimble ship can still dodge). Logo/key art from Chris as the Batocera marquee + fanart.
+  land; crosshair on a ship locks it (a fast, nimble ship can still dodge). Enemy planes that cross paths dogfight (35% each to go down). Logo/key art from Chris as the Batocera marquee + fanart.
   Up to two battles at once (four admirals). The map pauses when no free human is left, else runs at half speed beside the battle.
 - Controllers: Xbox 360 pads (SDL; pads without a mapping get the xpad layout), Switch-style pads (button names by position),
   Wii remotes held sideways (direct 1+2 connect or Batocera-paired), keyboard + mouse. Wii remotes: LEDs show the seat
@@ -33,7 +33,7 @@ images in `roms/ports/images/`, entry from `batocera/gamelist-entry.xml`. Log: `
 ## Test switches (env)
 `IH_STATE=game IH_PLAYERS=n` (all CPU) · `IH_HUMAN=1` (P1 = keyboard) · `IH_TEAMS=1` · `IH_MAPRANDOM=1` · `IH_BATTLE=1` (instant battle)
 · `IH_MENU=1` (harbor menu open) · `IH_FAST=n` (steps per frame) · `IH_UNTILOVER=1` · `IH_MAXTIME=s` · `IH_SHOT=frame IH_SHOT_PATH=x.bmp`
-· `IH_WINDOW=WxH` · `IH_MUTE=1` · `IH_NOWII=1` · `IH_WIIFAKE=n` (simulated remotes that press 2 in the lobby) · `IH_LOBBY=1` · `IH_BTEST=1` (with IH_HUMAN IH_BATTLE: scripted fire, ship switch, steer, fire; `=2`: locked carrier strike + wide battleship salvo) · `IH_SEED=n` · `IH_SEED_RNG=n`.
+· `IH_WINDOW=WxH` · `IH_MUTE=1` · `IH_NOWII=1` · `IH_WIIFAKE=n` (simulated remotes that press 2 in the lobby) · `IH_LOBBY=1` · `IH_BTEST=1` (with IH_HUMAN IH_BATTLE: scripted fire, ship switch, steer, fire; `=2`: locked carrier strike + wide battleship salvo; `=3`: both carriers launch at once, dogfight) · `IH_SEED=n` · `IH_SEED_RNG=n`.
 Headless: `xvfb-run -a -s "-screen 0 1920x1080x24" env IH_MUTE=1 SDL_AUDIODRIVER=dummy IH_NOWII=1 ... build/ih_test`.
 
 ## Next

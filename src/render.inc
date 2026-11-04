@@ -299,7 +299,8 @@ static void drawBattle(int bi, float u) {
         if (sh.wait > 0) continue;
         if (sh.plane) {
             Col pc = G.side[b.ships[sh.shooter].owner].col; V2 c = v.w2s(sh.p); float sz = (8 + 5 * sh.alt) * v.s;
-            planeShape(c, sh.ang, sz, mixc(pc, C_WHITE, 0.45f), 1.8f * u, 0.7f);
+            planeShape(c, sh.ang, sz, mixc(pc, C_WHITE, 0.12f), 2.0f * u, 0.8f);
+            if (sh.st == 3) G.cv.glowDisc(c, 6 * u, Col(255, 150, 60, 160));
             if (sh.st == 1 && sh.alt > 0.5f) G.cv.line(c - fromAng(sh.ang) * sz, c - fromAng(sh.ang) * sz * 2.6f, 1 * u, withA(C_WHITE, 0.25f), 0.2f);
             continue;
         }

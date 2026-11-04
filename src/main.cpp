@@ -83,7 +83,7 @@ struct Part { V2 p, v; float life, max, a, b; Col c; int kind; int layer; };   /
 // battle
 struct BShip { int side, owner, fleet, ship, t; V2 p, v; float ang, spd, thr = 0, reload = 0, landT = 0, flash = 0, sinkT = -1, aimT = 0, smokeT = 0; bool aiming = false; V2 aimAt; std::vector<V2> wake; float wakeT = 0; int telegraph = 2; int target = -1; float retarget = 0, wobble = 0; };
 struct Shot { int side; V2 from, to, p, dir; float t = 0, dur = 1, dmg, range, gone = 0, wait = 0; bool torp, dead = false; int shooter, mount = 0;
-              bool plane = false; int tgt = -1, st = 0; float ang = 0, alt = 0, spd = 0; };   // plane: carrier aircraft (st 0 deck run, 1 attack, 2 return)   // wait: salvo stagger before it leaves the mount
+              bool plane = false; int tgt = -1, st = 0; float ang = 0, alt = 0, spd = 0, cool = 0; };   // plane: carrier aircraft (st 0 deck run, 1 attack, 2 return, 3 shot down); cool: dogfight cooldown   // wait: salvo stagger before it leaves the mount
 struct Battle {
     bool live = false; int fl[2]; V2 center; std::vector<BShip> ships; std::vector<Shot> shots; std::vector<std::vector<V2>> land; std::vector<V2> landC;
     int active[2] = { -1, -1 }; float spread[2] = { 1, 1 }; V2 cross[2];   /* spread: how wide the salvo's reticles are grouped. each admiral controls ships[active[side]] only; the rest sit */ bool aiming[2] = { false, false }; float retreat[2] = { -1, -1 }; float t = 0, overT = -1; int winner = -1; int fled = -1;

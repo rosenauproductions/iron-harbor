@@ -285,7 +285,8 @@ static const char* HELP[] = {
     "IN BATTLE EVERY SHIP STARTS STOPPED. YOU CONTROL ONE SHIP AT A TIME - PRESS NEXT SHIP TO CHOOSE.",
     "THE OTHERS SIT WHERE THEY ARE AND DON'T FIRE. IF YOUR SHIP SINKS, YOU TAKE OVER THE NEXT ONE.",
     "HOLD FIRE TO AIM (YOUR SHIP STOPS DRIVING), RELEASE TO SHOOT. ONE RETICLE PER GUN: RT/LT (WII +/-) OPEN OR TIGHTEN",
-    "THE GROUP. CARRIER PLANES LOCK ON A SHIP UNDER THE CROSSHAIR - A FAST, NIMBLE TARGET CAN STILL DODGE. SHELLS LAND ON THE CROSSHAIR,",
+    "THE GROUP. CARRIER PLANES LOCK ON A SHIP UNDER THE CROSSHAIR - A FAST, NIMBLE TARGET CAN STILL DODGE. ENEMY PLANES",
+    "THAT CROSS PATHS DOGFIGHT AND CAN SHOOT EACH OTHER DOWN. SHELLS LAND ON THE CROSSHAIR,",
     "TORPEDOES HIT ANYTHING IN THEIR PATH. LAND HURTS. RETREAT TAKES 15 SECONDS.",
     "",
     "XBOX 360: STICK STEERS (POINT WHERE TO GO)  A FIRE/SELECT  B NEXT SHIP/BACK  Y ENGAGE/RETREAT",
@@ -568,6 +569,11 @@ static bool frame() {
         if (f >= 60 && f < 100) { k->b[B_A] = true; if (f > 62) lockOn(); }
         if (f == 330) k->pend[B_B] = true;
         if (f >= 340 && f < 420) { k->b[B_A] = true; k->b[B_RT] = f < 380; if (f > 342) { lockOn(); b.cross[0].x -= 60; } } }
+    // IH_BTEST=3: both carriers launch at the same moment at each other (dogfight check)
+    else if (getenv("IH_BTEST") && atoi(getenv("IH_BTEST")) == 3 && G.state == ST_GAME && G.bt[0].live) { Battle& b = G.bt[0]; int f = G.frame;
+        if (f == 59) for (auto& s : b.ships) if (s.side == 1) s.p.x -= 320;
+        if (f == 70) { int c[2] = { -1, -1 }; for (int i = 0; i < (int)b.ships.size(); i++) if (b.ships[i].t == T_CARRIER) c[b.ships[i].side] = i;
+            if (c[0] >= 0 && c[1] >= 0) { b.ships[c[0]].reload = b.ships[c[1]].reload = 0; fire(b, 0, c[0], b.ships[c[1]].p); fire(b, 0, c[1], b.ships[c[0]].p); } } }
     else if (getenv("IH_BTEST") && G.state == ST_GAME) { Dev* k = devById(-1); int f = G.frame;
         if (f >= 60 && f < 110) { k->b[B_A] = true; k->mv = V2(0.2f, -0.6f); }
         if (f == 140) k->pend[B_B] = true;
