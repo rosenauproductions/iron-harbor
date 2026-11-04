@@ -175,7 +175,7 @@ static void updateSide(int si, float dt) {
     if (S.sel >= 0 && (S.sel >= (int)G.fl.size() || G.fl[S.sel].dead)) S.sel = -1;
     Dev* d = sideDev(si); if (!d || sideInBattle(si)) { S.menu = false; return; }
     if (S.menu) {
-        if (d->navY) { S.menuSel = (S.menuSel + d->navY + NT + 2) % (NT + 2); AU.play(SND_UI, 0.4f); }
+        if (d->navY) { S.menuSel = (S.menuSel + d->navY + NT + 3) % (NT + 3); AU.play(SND_UI, 0.4f); }
         if (pr(*d, B_B) || pr(*d, B_START)) { S.menu = false; AU.play(SND_UI, 0.5f); return; }
         if (pr(*d, B_A)) {
             if (S.menuSel < NT) {
@@ -187,6 +187,9 @@ static void updateSide(int si, float dt) {
                 if (S.npick == 0) { AU.play(SND_ERR, 0.5f); toast(S, "PICK 1-3 SHIPS FIRST"); }
                 else if (fleetsAtSea(si) >= MAXFLEETS) { AU.play(SND_ERR, 0.5f); toast(S, "4 FLEETS ARE ALREADY AT SEA"); }
                 else { int fi = launchFleet(si, S.pick, S.npick); S.npick = 0; S.menu = false; if (fi >= 0) { S.sel = fi; S.cur = G.fl[fi].p + S.hdir * 120; toast(S, "FLEET LAUNCHED - MOVE THE CURSOR, PRESS " + std::string(btnName(si, B_A))); } }
+            } else if (S.menuSel == NT + 1) {   // send the selected fleet home to dock for repairs
+                if (S.sel < 0 || G.fl[S.sel].battle >= 0) { AU.play(SND_ERR, 0.5f); toast(S, "SELECT A FLEET AT SEA FIRST"); }
+                else { orderMove(S.sel, S.harbor, true); S.menu = false; toast(S, S.docks > 0 ? "RETURNING TO DOCK FOR REPAIRS" : "NO REPAIRS LEFT"); AU.play(SND_UI_OK, 0.5f); }
             } else { S.menu = false; AU.play(SND_UI, 0.5f); }
         }
         return;
@@ -201,7 +204,8 @@ static void updateSide(int si, float dt) {
         int f = fleetNear(si, S.cur, 45);
         bool atHarbor = dist(S.cur, S.harbor) < HARBOR_R + 45;
         if (f >= 0 && f != S.sel) { S.sel = f; AU.play(SND_UI_OK, 0.5f); }
-        else if (atHarbor && S.sel >= 0 && G.fl[S.sel].battle < 0) { orderMove(S.sel, S.harbor, true); toast(S, S.docks > 0 ? "RETURNING TO DOCK FOR REPAIRS" : "NO REPAIRS LEFT"); AU.play(SND_UI_OK, 0.5f); }
+        // the harbor always opens its menu (form a new fleet); docking the selected fleet is an item in it. (Chris, 4 Nov:
+        // pressing A at the harbor used to send the selected fleet home, which looked like it was following the cursor.)
         else if (atHarbor) { S.menu = true; S.npick = 0; S.menuSel = 0; AU.play(SND_UI_OK, 0.5f); }
         else if (S.sel >= 0) {
             orderMove(S.sel, S.cur, false);
@@ -279,7 +283,7 @@ static const char* HELP[] = {
     "",
     "THE MINE LAYER LAYS UP TO 4 HIDDEN MINEFIELDS. AN ENEMY FLAGSHIP INSIDE ONE TAKES 20 DAMAGE EVERY 3 S.",
     "A SWEEPER IN SWEEP MODE (15 KNOTS) CLEARS ENEMY FIELDS IT CROSSES - WITHOUT TELLING YOU.",
-    "SEND A FLEET INTO YOUR OWN HARBOR TO DOCK: FULL REPAIRS, SHIPS BACK IN PORT. 3 TIMES PER GAME.",
+    "TO DOCK A FLEET: SELECT IT, OPEN YOUR HARBOR, PICK DOCK SELECTED FLEET. FULL REPAIRS, 3 TIMES PER GAME.",
     "",
     "WHEN ENEMY FLEETS MEET, THE ALARM SOUNDS - ALL HANDS ON DECK: ENGAGE WITHIN 6 SECONDS OR SAIL ON.",
     "IN BATTLE EVERY SHIP STARTS STOPPED. YOU CONTROL ONE SHIP AT A TIME - PRESS NEXT SHIP TO CHOOSE.",
@@ -584,6 +588,25 @@ static bool frame() {
         if (f == 140) k->pend[B_B] = true;
         if (f >= 150 && f < 230) { k->b[B_RIGHT] = true; k->mv = V2(1, 0); }
         if (f >= 240 && f < 290) { k->b[B_A] = true; k->mv = V2(0.3f, -0.5f); } }
+    // IH_FLEETTEST: launch a fleet, send it out, open the harbor again for a second fleet (the first must keep its course),
+    // then dock the first from the harbor menu
+    if (getenv("IH_FLEETTEST") && G.state == ST_GAME) { Dev* k = devById(-1); Side& S = G.side[0]; int f = G.frame;
+        auto st = [&](const char* w) { printf("fleettest %s: menu %d sel %d", w, (int)S.menu, S.sel);
+            for (auto& fl : G.fl) if (fl.owner == 0 && !fl.dead) printf(" | fleet moving %d dock %d goal %.0f,%.0f", (int)fl.moving, (int)fl.dock, fl.path.empty() ? -1.f : fl.path.back().x, fl.path.empty() ? -1.f : fl.path.back().y);
+            printf("\n"); };
+        if (f == 30) { S.cur = S.harbor; k->pend[B_A] = true; }
+        if (f == 35) { S.menuSel = 0; k->pend[B_A] = true; }
+        if (f == 40) { S.menuSel = NT; k->pend[B_A] = true; }
+        if (f == 60) { S.cur = S.harbor + S.hdir * 450; k->pend[B_A] = true; }
+        if (f == 120) { S.cur = S.harbor; k->pend[B_A] = true; }
+        if (f == 125) st("harbor opened with fleet 1 selected");
+        if (f == 130) { S.menuSel = 2; k->pend[B_A] = true; }
+        if (f == 135) { S.menuSel = NT; k->pend[B_A] = true; }
+        if (f == 140) st("second fleet launched");
+        if (f == 150) { k->pend[B_LB] = true; }
+        if (f == 155) { S.cur = S.harbor; k->pend[B_A] = true; }
+        if (f == 160) { S.menuSel = NT + 1; k->pend[B_A] = true; }
+        if (f == 165) st("docked the selected fleet"); }
     // BACK + START on a pad (Batocera's HOTKEY + START) leaves the match
     for (auto& d : G.devs) if (d.gc && d.b[B_BACK] && d.b[B_START] && (pr(d, B_START) || pr(d, B_BACK))) { if (G.state == ST_GAME) quitToTitle(); else G.quit = true; usePresses(); }
     if (G.state == ST_GAME) {

@@ -200,7 +200,7 @@ static void drawMap(SDL_Rect vp, float u) {
 // ---------------------------------------------------------------- harbor menu (form a fleet)
 static void drawHarborMenu(int si, float u) {
     Side& S = G.side[si]; if (!S.menu || !MAPSHOWN) return;
-    float w = 390 * u, h = (NT + 5) * 26 * u + 40 * u;
+    float w = 390 * u, h = (NT + 6) * 26 * u + 40 * u;
     V2 hp = VMAP.w2s(S.harbor + S.hdir * 160);
     float x = clampf(hp.x - (S.hdir.x < 0 ? w : 0), G.mapVp.x + 8 * u, G.mapVp.x + G.mapVp.w - w - 8 * u), y = clampf(hp.y - h / 2, G.mapVp.y + 50 * u, G.mapVp.y + G.mapVp.h - h - 8 * u);
     panel(x, y, w, h, S.col, u, 238);
@@ -218,11 +218,12 @@ static void drawHarborMenu(int si, float u) {
         if (order >= 0) text(std::to_string(order + 1), x + 18 * u, ly, 13 * u, S.col);
         ly += 26 * u;
     }
-    const char* items[2] = { "LAUNCH FLEET", "CLOSE" };
-    for (int k = 0; k < 2; k++) {
-        bool sel = S.menuSel == NT + k;
+    bool canDock = S.sel >= 0 && S.sel < (int)G.fl.size() && !G.fl[S.sel].dead && G.fl[S.sel].battle < 0;
+    const char* items[3] = { "LAUNCH FLEET", "DOCK SELECTED FLEET", "CLOSE" };
+    for (int k = 0; k < 3; k++) {
+        bool sel = S.menuSel == NT + k, grey = (k == 0 && S.npick == 0) || (k == 1 && !canDock);
         if (sel) G.cv.rect(x + 6 * u, ly - 5 * u, w - 12 * u, 24 * u, withA(S.col, 0.22f));
-        text(items[k], x + 40 * u, ly, 14 * u, k == 0 && S.npick == 0 ? Col(90, 90, 100) : sel ? S.col : C_WHITE);
+        text(items[k], x + 40 * u, ly, 14 * u, grey ? Col(90, 90, 100) : sel ? S.col : C_WHITE);
         ly += 26 * u;
     }
     text("FLAGSHIP = FIRST PICKED. ONE OF EACH TYPE.", x + 16 * u, ly + 6 * u, 10 * u, C_DIM);

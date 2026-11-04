@@ -21,7 +21,7 @@ Original naval strategy/battle game by Rosenau Productions for the Batocera box 
 - Map: enemy fleets show only their size (CLASSIC info). With one local human, info is OPEN (no one to hide from).
 - Mines: the mine layer drops up to 4 invisible fields. An enemy fleet entering one: flagship -20 HP, again every 3 s inside.
   A sweeper in SWEEP mode (15 kn) clears enemy fields it crosses, silently.
-- Repairs: sail a fleet into your own harbor = docked, fully repaired, ships back in the harbor. 3 dockings per game.
+- Repairs: select a fleet, open your harbor, pick DOCK SELECTED FLEET: it sails home, docks, fully repaired, ships back in the harbor. 3 dockings per game. (A on the harbor always opens the harbor menu.)
 - Contact: hostile fleets that come close flash for 6 s; either side can ENGAGE. Otherwise they pass.
   With a local player involved: general-quarters alarm bell (repeats every 1.75 s), "ALL HANDS ON DECK" over the contact, red edge pulse, rumble.
 - Battle: zoomed view of that patch of sea (real islands). Every ship starts stopped. Each admiral (CPU too) controls ONE ship
