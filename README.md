@@ -4,21 +4,22 @@ Naval strategy for 1-4 admirals on one screen, any mix of local players and CPU 
 lay hidden minefields, fight close battles at sea, and sail your carrier or troop transport into an enemy harbor.
 Original game by Rosenau Productions. C++17 + SDL2, vector art drawn in code, synthesized sound. Rules and controls: `docs/DESIGN.md`.
 
-## Status (3 Nov 2026)
+## Status (4 Nov 2026)
 - Playable start to finish: lobby (4 seats: admiral / CPU easy-normal-hard / open; free for all or 2v2; classic or random sea),
   strategy map, harbor menu, fleets, mines, sweeping, docking (3 repairs), contacts, battles, captures, results.
-- Maps: generator with mirrored islands (2 admirals west/east, 3-4 in the corners), checked so every harbor can reach every other.
+- Maps: generator with mirrored islands (2 admirals west/east, 3-4 in the corners), checked so every harbor can reach every other. Ragged, organic coastlines; each harbor sits in a bay on its home coast; the big middle island is its own shape (not mirrored).
 - Battles: the real islands of that patch of sea. All ships start stopped; every admiral (CPU too) controls one ship at a time,
   the others sit still; B / Wii 1 picks the next ship. Hold to aim. (4 Nov)
 - Salvos (4 Nov): one shot per gun mount from its own turret, one reticle each (battleship 3, destroyer 2, sub/PT 2 tubes);
   RT/LT (Wii +/-, keys T/F) open or tighten the group. Carrier = air strike: 2 planes roll off the deck, bomb, fly back and
   land; crosshair on a ship locks it (a fast, nimble ship can still dodge). Enemy planes that cross paths dogfight (35% each to go down). Logo/key art from Chris as the Batocera marquee + fanart.
-  Up to two battles at once (four admirals). The map pauses when no free human is left, else runs at half speed beside the battle.
+  Battle HUD ("E"): telegraph dial with knots, armor plates, ship silhouette with its gun/tube/plane icons, accuracy and
+  turn ladders, spread dots. Up to two battles at once (four admirals). The map pauses when no free human is left, else runs at half speed beside the battle.
 - Controllers: Xbox 360 pads (SDL; pads without a mapping get the xpad layout), Switch-style pads (button names by position),
   Wii remotes held sideways (direct 1+2 connect or Batocera-paired), keyboard + mouse. Wii remotes: LEDs show the seat
   (all four = connected, no seat yet), rumble on hits/sinkings.
 - Tested in the cloud only: many CPU-vs-CPU matches (2/3/4 admirals, teams, random seas) to the end; simulated Wii remotes
-  joining the lobby; browser build in headless Chromium. **Not yet run on the box or with real controllers.**
+  joining the lobby; browser build in headless Chromium. First box run 3 Nov with two Xbox 360 pads (4K, two battles, clean exit); Wii remotes not yet tried on the box.
 
 ## Build
 - Native test: `./build.sh native` -> `build/ih_test` (needs `libsdl2-dev`).

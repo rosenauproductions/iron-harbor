@@ -221,14 +221,47 @@ static bool onLand(V2 q, float pad = 0) { return landDist(q, pad + 1) < pad; }
 // ---------------------------------------------------------------- map generator
 // Islands are smooth radial blobs. Maps are mirrored so every harbor has the same sea around it:
 // 2 admirals: harbors west and east, point symmetry. 3-4 admirals: harbors in the corners, mirrored both ways.
+// a ragged coastline: many harmonics falling off in strength (a fractal-ish shore), plus a few coves and points
+struct Coast { int nk = 0, kk[24]; float amp[24], ph[24]; int nc = 0; float cove[6], coveW[6], coveD[6]; };
+static Coast makeCoast(Rng& rg, float rough, bool evenOnly) {
+    Coast c;
+    for (int k = 2; k < 26 && c.nk < 24; k++) {
+        if (evenOnly && (k & 1)) continue;
+        c.kk[c.nk] = k; c.amp[c.nk] = rough * rg.range(0.5f, 1.0f) / std::pow((float)k, 1.15f) * 0.55f * (k == 2 ? 0.6f : 1.f);
+        c.ph[c.nk] = evenOnly ? 0 : rg.range(0, 6.28f); c.nk++;
+    }
+    c.nc = evenOnly ? 0 : 2 + rg.i(3);
+    for (int i = 0; i < c.nc; i++) { c.cove[i] = rg.range(0, 6.28f); c.coveW[i] = rg.range(0.10f, 0.28f); c.coveD[i] = rg.range(-0.28f, 0.22f); }   // < 0 cove, > 0 point
+    return c;
+}
+static float coastR(const Coast& c, float a) {
+    float k = 1;
+    for (int i = 0; i < c.nk; i++) k += c.amp[i] * (c.ph[i] == 0 ? std::cos(c.kk[i] * a) : std::sin(c.kk[i] * a + c.ph[i]));
+    for (int i = 0; i < c.nc; i++) { float d = angDiff(c.cove[i], a); k += c.coveD[i] * std::exp(-(d * d) / (c.coveW[i] * c.coveW[i])); }
+    return std::max(0.35f, k);
+}
 static Island makeIsland(Rng& rg, V2 c, float r, float stretch, float rot) {
-    Island is; is.c = c; is.r = r; int n = 22 + rg.i(8);
-    float ph[3] = { rg.range(0, 6.28f), rg.range(0, 6.28f), rg.range(0, 6.28f) }, am[3] = { rg.range(0.12f, 0.22f), rg.range(0.06f, 0.14f), rg.range(0.03f, 0.08f) };
+    Island is; is.c = c; is.r = r; int n = 72 + rg.i(24);
+    Coast co = makeCoast(rg, rg.range(0.7f, 1.15f), false);
     for (int i = 0; i < n; i++) {
         float a = i * 2 * PI / n;
-        float k = 1 + am[0] * std::sin(2 * a + ph[0]) + am[1] * std::sin(3 * a + ph[1]) + am[2] * std::sin(5 * a + ph[2]);
-        V2 v = fromAng(a) * (r * k); v.x *= stretch; v.y /= std::sqrt(stretch);
+        V2 v = fromAng(a) * (r * coastR(co, a)); v.x *= stretch; v.y /= std::sqrt(stretch);
         is.pts.push_back(c + rotv(v, rot));
+    }
+    return is;
+}
+// the home coast: a landmass behind the harbor with a bay cut into it, opening toward 'face'
+static Island makeBay(Rng& rg, V2 harbor, V2 face, float base) {
+    Island is; V2 c = harbor - face * 190; is.c = c; is.r = base; int n = 110;
+    Coast co = makeCoast(rg, 1.05f, false), fl = makeCoast(rg, 0.9f, false); fl.nc = 0;
+    for (int i = 0; i < co.nc; i++) if (std::fabs(angDiff(std::atan2(face.y, face.x), co.cove[i])) < 0.9f) co.coveD[i] = 0;   // no points inside the inlet
+    float fa = std::atan2(face.y, face.x);
+    for (int i = 0; i < n; i++) {
+        float a = i * 2 * PI / n, d = angDiff(fa, a);
+        float r = base * coastR(co, a);
+        float bay = std::exp(-(d * d) / (0.50f * 0.50f));                    // the inlet: a deep bite, arms reaching past the harbor
+        r = r * (1 - bay) + 85 * coastR(fl, a * 2.5f) * bay;                // its far shore is ragged too
+        is.pts.push_back(c + fromAng(a) * r);
     }
     return is;
 }
@@ -256,13 +289,8 @@ static void genMap(unsigned seed, int nSlots) {
         V2 hp[4], hd[4]; harborLayout(nSlots, hp, hd);
         bool four = nSlots > 2;
         std::vector<Island> base;
-        // headlands around each harbor mouth make a bay (generated for harbor 0, mirrored for the others)
-        if (!four) {
-            for (int k = -1; k <= 1; k += 2) { Island h = makeIsland(rg, hp[0] + V2(-60, k * 190.f), 120, 0.75f, 0); base.push_back(h); }
-        } else {
-            base.push_back(makeIsland(rg, V2(330, 20), 125, 1.4f, 0.1f));
-            base.push_back(makeIsland(rg, V2(20, 330), 125, 1.4f, PI / 2 - 0.1f));
-        }
+        // the home coast around each harbor (made for harbor 0, mirrored for the others)
+        base.push_back(makeBay(rg, hp[0], hd[0], four ? 300 : 310));
         // open-sea islands in the generating region (west half / top-left quadrant), away from harbors and each other
         float rx = four ? MW / 2 : MW / 2, ry = four ? MH / 2 : MH;
         int want = four ? 4 : 7;
@@ -284,17 +312,33 @@ static void genMap(unsigned seed, int nSlots) {
             if (!four) G.isl.push_back(mirrorIsland(b, true, true));
             else { G.isl.push_back(mirrorIsland(b, true, false)); G.isl.push_back(mirrorIsland(b, false, true)); G.isl.push_back(mirrorIsland(b, true, true)); }
         }
-        // a big island in the middle, symmetric by construction
+        // a big island in the middle
         {
-            Island m; m.c = V2(MW / 2, MH / 2); float r = four ? rg.range(150, 200) : rg.range(110, 160); m.r = r; int n = 32;
-            float ph = rg.range(0, 6.28f), a2 = rg.range(0.1f, 0.25f), a4 = rg.range(0.05f, 0.15f);
+            Island m; m.c = V2(MW / 2, MH / 2); float r = four ? rg.range(150, 200) : rg.range(110, 160); m.r = r; int n = 96;
+            // its own ragged coast, not mirrored (Chris: the middle island should not be symmetrical)
+            Coast co = makeCoast(rg, 1.05f, false);
+            float rot = rg.range(-0.35f, 0.35f);
             for (int i = 0; i < n; i++) {
                 float a = i * 2 * PI / n;
-                float k = 1 + a2 * std::cos(2 * a + (four ? 0 : ph)) + a4 * std::cos(4 * a + (four ? 0 : ph * 2));
-                V2 v = fromAng(a) * (r * k); if (!four) v.x *= 0.7f; else v.x *= 1.5f;
-                m.pts.push_back(m.c + v);
+                V2 v = fromAng(a) * (r * coastR(co, a)); if (!four) v.x *= 0.7f; else v.x *= 1.35f;
+                m.pts.push_back(m.c + rotv(v, rot));
             }
             if (rg.f() < 0.8f || four) G.isl.push_back(m);
+        }
+        // rocks and islets scattered near the bigger islands (mirrored with them)
+        {
+            std::vector<Island> rocks; size_t nb = base.size();
+            for (size_t i = 1; i < nb; i++) for (int t = 0; t < 2; t++) {
+                const Island& b0 = base[i]; float a = rg.range(0, 6.28f), d = b0.r * rg.range(1.25f, 1.6f), rr = rg.range(10, 22);
+                V2 p = b0.c + fromAng(a) * d; bool ok = p.x > 80 && p.y > 80 && p.x < (four ? MW / 2 : MW / 2) - 50 && p.y < (four ? MH / 2 : MH) - 50;
+                for (int h = 0; h < (four ? 4 : 2); h++) if (dist(p, hp[h]) < 360) ok = false;
+                if (ok && rg.f() < 0.55f) rocks.push_back(makeIsland(rg, p, rr, rg.range(0.7f, 1.4f), rg.range(0, 6.28f)));
+            }
+            for (auto& r0 : rocks) {
+                G.isl.push_back(r0);
+                if (!four) G.isl.push_back(mirrorIsland(r0, true, true));
+                else { G.isl.push_back(mirrorIsland(r0, true, false)); G.isl.push_back(mirrorIsland(r0, false, true)); G.isl.push_back(mirrorIsland(r0, true, true)); }
+            }
         }
         for (auto& is : G.isl) finishIsland(is);
         buildNav();

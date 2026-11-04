@@ -285,48 +285,123 @@ static void drawShip(const BShip& s, const View& v, float u, bool active, const 
     }
 }
 
-// the controlled ship's stats, bottom corner of the battle view (left for the first fleet, right for the second)
-static void drawShipStats(const Battle& b, int k, const Side& S, float ax, float bottom, bool right, float u) {
+// ---------------------------------------------------------------- battle HUD: engine telegraph + live silhouette (Chris's pick, 4 Nov)
+// icons are drawn in "icon units" (about 24 across) at scale k pixels per unit, centred on c, turned by ang
+static V2 icp(V2 c, float k, float ang, float x, float y) { return c + rotv(V2(x, y), ang) * k; }
+static void iconTurret(V2 c, float k, float ang, Col col, bool ready, float reloadFrac, float u) {
+    V2 h[7] = { icp(c, k, ang, -9, -7), icp(c, k, ang, 4, -7), icp(c, k, ang, 9, -2), icp(c, k, ang, 9, 2), icp(c, k, ang, 4, 7), icp(c, k, ang, -9, 7), icp(c, k, ang, -12, 0) };
+    if (ready) G.cv.fillPoly(h, 7, withA(col, 0.28f));
+    G.cv.poly(h, 7, 1.3f * u, col, 0.6f);
+    for (float y : { -3.f, 3.f }) { G.cv.line(icp(c, k, ang, 8, y), icp(c, k, ang, 19, y), 2.0f * u, col, 0.6f); G.cv.line(icp(c, k, ang, 19, y - 1.6f), icp(c, k, ang, 19, y + 1.6f), 1.3f * u, col, 0.4f); }
+    G.cv.circle(icp(c, k, ang, -3, 0), 2.2f * k, 1 * u, col, 0.3f, 8);
+    if (!ready) { G.cv.circle(c, 14 * k, 1.6f * u, withA(col, 0.18f), 0, 28); G.cv.arc(c, 14 * k, -PI / 2, -PI / 2 + 2 * PI * clampf(reloadFrac, 0.01f, 1), 1.8f * u, C_WARN, 0.7f); }
+}
+static void iconTorp(V2 c, float k, float ang, Col col, float loaded, float u) {   // loaded: 1 in the tube, 0..1 sliding in, <0 empty
+    G.cv.line(icp(c, k, ang, -16, -5.5f), icp(c, k, ang, 14, -5.5f), 1.1f * u, withA(col, 0.55f), 0.3f);
+    G.cv.line(icp(c, k, ang, -16, 5.5f), icp(c, k, ang, 14, 5.5f), 1.1f * u, withA(col, 0.55f), 0.3f);
+    G.cv.line(icp(c, k, ang, -16, -5.5f), icp(c, k, ang, -16, 5.5f), 1.1f * u, withA(col, 0.55f), 0.3f);
+    G.cv.line(icp(c, k, ang, 14, -7), icp(c, k, ang, 14, 7), 1.5f * u, col, 0.5f);
+    if (loaded <= 0) return;
+    float off = -24 * (1 - loaded); Col c2 = loaded >= 1 ? col : C_WARN;
+    V2 f[5] = { icp(c, k, ang, -12 + off, -3), icp(c, k, ang, 7 + off, -3), icp(c, k, ang, 12 + off, 0), icp(c, k, ang, 7 + off, 3), icp(c, k, ang, -12 + off, 3) };
+    G.cv.fillPoly(f, 5, withA(c2, 0.35f)); G.cv.poly(f, 5, 1.2f * u, c2, 0.6f);
+    G.cv.line(icp(c, k, ang, -12 + off, -3), icp(c, k, ang, -15 + off, -5.5f), 1.1f * u, c2, 0.3f); G.cv.line(icp(c, k, ang, -12 + off, 3), icp(c, k, ang, -15 + off, 5.5f), 1.1f * u, c2, 0.3f);
+    G.cv.line(icp(c, k, ang, -15 + off, -2), icp(c, k, ang, -15 + off, 2), 1.5f * u, c2, 0.3f);
+}
+enum { PL_DECK, PL_ATTACK, PL_RETURN, PL_DOWN };
+static void iconPlane(V2 c, float k, float ang, Col col, int st, float u) {
+    Col c2 = st == PL_ATTACK ? C_GOOD : st == PL_RETURN ? C_WARN : st == PL_DOWN ? C_BAD : col; if (st == PL_RETURN) ang += PI;
+    V2 body[7] = { icp(c, k, ang, 13, 0), icp(c, k, ang, 9, -1.8f), icp(c, k, ang, -9, -1.4f), icp(c, k, ang, -12, -1), icp(c, k, ang, -12, 1), icp(c, k, ang, -9, 1.4f), icp(c, k, ang, 9, 1.8f) };
+    V2 w1[4] = { icp(c, k, ang, 4, -1.6f), icp(c, k, ang, -3, -13), icp(c, k, ang, -6, -13), icp(c, k, ang, -3, -1.6f) }, w2[4] = { icp(c, k, ang, 4, 1.6f), icp(c, k, ang, -3, 13), icp(c, k, ang, -6, 13), icp(c, k, ang, -3, 1.6f) };
+    V2 t1[4] = { icp(c, k, ang, -9, -1.2f), icp(c, k, ang, -13, -5.5f), icp(c, k, ang, -14.5f, -5.5f), icp(c, k, ang, -12, -1) }, t2[4] = { icp(c, k, ang, -9, 1.2f), icp(c, k, ang, -13, 5.5f), icp(c, k, ang, -14.5f, 5.5f), icp(c, k, ang, -12, 1) };
+    float fa = st == PL_DECK ? 0.4f : 0.22f;
+    for (auto* q : { w1, w2, t1, t2 }) { G.cv.fillPoly(q, 4, withA(c2, fa)); G.cv.poly(q, 4, 1.0f * u, c2, 0.5f); }
+    G.cv.fillPoly(body, 7, withA(c2, fa)); G.cv.poly(body, 7, 1.0f * u, c2, 0.5f);
+    if (st == PL_ATTACK) for (float y : { -8.f, 0.f, 8.f }) G.cv.line(icp(c, k, ang, -17, y), icp(c, k, ang, -24, y), 1 * u, withA(c2, 0.6f), 0.2f);
+    if (st == PL_DOWN) { G.cv.line(c + V2(-9, -9) * k, c + V2(9, 9) * k, 2 * u, C_BAD, 0.6f); G.cv.line(c + V2(9, -9) * k, c + V2(-9, 9) * k, 2 * u, C_BAD, 0.6f); }
+}
+// keep the part of a convex polygon right of x = cut (armor fill drains from the stern)
+static std::vector<V2> clipRightOf(const std::vector<V2>& p, float cut) {
+    std::vector<V2> o; size_t n = p.size();
+    for (size_t i = 0; i < n; i++) {
+        V2 a = p[i], b = p[(i + 1) % n]; bool ia = a.x >= cut, ib = b.x >= cut;
+        if (ia) o.push_back(a);
+        if (ia != ib) { float t = (cut - a.x) / (b.x - a.x); o.push_back(a + (b - a) * t); }
+    }
+    return o;
+}
+static void ladderUI(float x, float y, float v, float mx, const char* label, float S, float u) {
+    text(label, x, y + 0.5f * S, 5 * S, withA(C_WHITE, 0.55f));
+    int n = (int)std::lround(clampf(v / mx, 0, 1) * 5);
+    for (int i = 0; i < 5; i++) { float bx = x + 22 * S + i * 7 * S; if (i < n) G.cv.rect(bx, y - 1 * S, 5 * S, 8 * S, Col(92, 225, 255)); else G.cv.rectLine(bx, y - 1 * S, 5 * S, 8 * S, 1 * u, Col(92, 225, 255, 80), 0); }
+}
+static void drawShipStats(const Battle& b, int k, const Side& S0, float ax, float bottom, bool right, float u) {
     const BShip& s = b.ships[k]; const SDef& d = SD[s.t]; const Ship& sh = G.side[s.owner].ship[s.ship];
-    float pw = 410 * u, ph = 176 * u, x = right ? ax - pw : ax, y = bottom - ph;
-    panel(x, y, pw, ph, S.col, u, 205);
-    float lx = x + 12 * u, bx = x + 100 * u, bw = pw - 100 * u - 96 * u, vx = x + pw - 12 * u, row = 21 * u; float yy = y + 10 * u;
-    text(d.name, lx, yy, 15 * u, S.col);
+    const float S = 1.3f * u; Col pc = S0.col;
+    float W = 340 * S, H = 122 * S, x = right ? ax - W : ax, y = bottom - H;
+    G.cv.rect(x, y, W, H, Col(3, 14, 28, 235)); G.cv.rectLine(x, y, W, H, 1.5f * u, pc, 0.6f);
+    bool aim = b.aiming[s.side]; int eng = aim ? 0 : (int)std::lround(clampf(s.thr, 0, 1) * 3);
+    float hp = clampf(sh.hp / d.armor, 0, 1); Col ac = hp > 0.5f ? C_GOOD : hp > 0.25f ? C_WARN : C_BAD;
+    // ---- engine-order telegraph (left)
+    V2 c(x + 62 * S, y + 66 * S); float R = 46 * S;
+    static const char* LBL[4] = { "STOP", "1/3", "2/3", "FULL" };
+    for (int i = 0; i < 4; i++) {
+        float a0 = PI + i * PI / 4, a1 = a0 + PI / 4; bool on = !aim && i == eng, am = aim && i == 0;
+        if (on || am) { Col fc = withA(am ? C_WARN : pc, 0.2f); for (int q = 0; q < 6; q++) { float t0 = a0 + (a1 - a0) * q / 6, t1 = a0 + (a1 - a0) * (q + 1) / 6; G.cv.tri(G.cv.fillV, c, c + fromAng(t0) * R, c + fromAng(t1) * R, fc, fc, fc); } }
+        G.cv.line(c, c + fromAng(a0) * R, 1 * u, withA(pc, 0.3f), 0);
+        float m = a0 + PI / 8; text(LBL[i], c.x + std::cos(m) * (R - 15 * S), c.y + std::sin(m) * (R - 15 * S) - 2.4f * S, 4.8f * S, (on || am) ? (am ? C_WARN : pc) : withA(pc, 0.45f), 1);
+    }
+    G.cv.line(c, c + V2(R, 0), 1 * u, withA(pc, 0.3f), 0);
+    G.cv.arc(c, R + 3 * S, PI, 2 * PI, 2 * u, pc, 0.8f);
+    float lev = PI + PI / 4 * (eng + 0.5f); Col lc = aim ? C_WARN : pc;
+    G.cv.line(c, c + fromAng(lev) * (R + 7 * S), 3 * u, lc, 0.9f); G.cv.disc(c + fromAng(lev) * (R + 7 * S), 3.6f * S, lc, 10);
+    G.cv.disc(c, 13 * S, Col(4, 16, 31), 20); G.cv.circle(c, 13 * S, 1.2f * u, pc, 0.4f, 20);
+    int kn = (int)std::lround(std::fabs(s.spd) / BKN);
+    text(std::to_string(kn), c.x, c.y - 3.6f * S, 7.2f * S, C_WHITE, 1);
+    text(aim ? "AIMING" : "KN  TOP " + std::to_string((int)d.knots), c.x, c.y + 17 * S, 4.6f * S, aim ? C_WARN : withA(pc, 0.6f), 1);
+    // armor plates (5 armor each) and the number
+    int np = (int)std::ceil(d.armor / 5); float pw = std::min(14.f, (104.f - (np - 1) * 2) / np) * S, gap = 2 * S, px = c.x - (np * pw + (np - 1) * gap) / 2, left = std::max(0.f, sh.hp) / 5;
+    for (int i = 0; i < np; i++) { float f = clampf(left - i, 0, 1), bx = px + i * (pw + gap); G.cv.rectLine(bx, y + 96 * S, pw, 6 * S, 1 * u, withA(ac, 0.35f), 0); if (f > 0) G.cv.rect(bx, y + 96 * S, pw * f, 6 * S, ac); }
+    text(std::to_string((int)std::ceil(std::max(0.f, sh.hp))) + "/" + std::to_string((int)d.armor), c.x, y + 106 * S, 5.4f * S, ac, 1);
+    G.cv.line(V2(x + 122 * S, y + 12 * S), V2(x + 122 * S, y + H - 12 * S), 1 * u, withA(pc, 0.18f), 0);
+    // ---- the live ship (right)
+    float x1 = x + 132 * S, xr = x + W - 12 * S;
+    text(d.name, x1, y + 12 * S, 6.6f * S, pc);
+    int lk = s.t == T_CARRIER && aim ? shipUnder(b, s.side, b.cross[s.side], 14) : -1;
+    if (lk >= 0) text("TARGET LOCKED", xr, y + 13 * S, 5 * S, C_WARN, 2);
+    float L = std::min(170.f, 70 + d.L * 1.15f) * S, Wd = std::max(14.f, d.Wd * 1.15f) * S, x0 = xr - L - 4 * S, cy = y + 56 * S;
+    float kf = clampf(std::fabs(s.spd) / (40 * BKN), 0, 1), wk = (6 + 46 * kf) * S;
+    for (float dy : { -0.35f, 0.f, 0.35f }) G.cv.line(V2(x0 - 3 * S, cy + dy * Wd), V2(std::max(x1, x0 - 3 * S - wk * (dy != 0 ? 0.7f : 1.f)), cy + dy * Wd * 1.7f), 1.2f * u, withA(pc, 0.18f + 0.45f * kf), 0.2f);
+    std::vector<V2> hl; hullPts(s.t, hl); std::vector<V2> hs;
+    for (auto& q : hl) hs.push_back(V2(x0 + (q.x / d.L + 0.5f) * L, cy + (q.y / d.Wd) * Wd));
+    std::vector<V2> fill = clipRightOf(hs, x0 + L * (1 - hp));
+    if (fill.size() >= 3) G.cv.fillPoly(fill.data(), (int)fill.size(), withA(ac, 0.22f));
+    G.cv.poly(hs.data(), (int)hs.size(), 1.5f * u, ac, 0.8f);
+    if (s.t == T_CARRIER) G.cv.dash(V2(x0 + L * 0.1f, cy), V2(x0 + L * 0.88f, cy), 5 * S, 4 * S, 1 * u, withA(pc, 0.35f));
+    // mounts at their real spots
+    int n = MOUNTS[s.t].n; float rf = 1 - clampf(s.reload / d.reload, 0, 1); bool ready = s.reload <= 0;
+    for (int i = 0; i < n; i++) {
+        const Mount& m = MOUNTS[s.t].m[i]; V2 mc(x0 + (m.x + 0.5f) * L, cy + m.y * Wd * 1.6f);
+        if (s.t == T_CARRIER) {
+            int st = PL_DECK; bool out = false;
+            for (auto& q : b.shots) if (q.plane && q.shooter == k && q.mount == i && !q.dead && q.wait <= 0) { out = true; st = q.st == 2 ? PL_RETURN : q.st == 3 ? PL_DOWN : PL_ATTACK; }
+            if (!out && planesOut(b, k)) st = PL_DOWN;   // the other plane is still out; this one didn't come back
+            iconPlane(mc, 0.62f * S, 0, pc, st, u);
+        } else if (d.torp) iconTorp(mc, 0.7f * S, 0, pc, ready ? 1.f : rf < 0.15f ? -1.f : rf, u);
+        else iconTurret(mc, 0.7f * S, m.rest < 0 ? PI : 0, pc, ready, rf, u);
+    }
+    // ---- bottom: weapon, handling, spread
+    std::string wname = s.t == T_CARRIER ? std::to_string(n) + " PLANES" : d.torp ? std::to_string(n) + (n > 1 ? " TUBES" : " TUBE") : std::to_string(n) + (n > 1 ? " GUNS" : " GUN");
+    char wb[80]; snprintf(wb, sizeof wb, "%s  %d DMG  R %d", wname.c_str(), (int)d.dmg, (int)d.range);
+    text(wb, x1, y + H - 33 * S, 5.6f * S, pc);
+    ladderUI(x1, y + H - 18 * S, d.accel, 1.2f, "ACC", S, u); ladderUI(x1 + 66 * S, y + H - 18 * S, d.turn, 1.6f, "TRN", S, u);
+    if (n > 1) {
+        int ks = (int)std::lround(clampf((b.spread[s.side] - 0.3f) / 2.7f, 0, 1) * 4) + 1;
+        for (int i = 0; i < 5; i++) { V2 q(xr - 34 * S + i * 8 * S, y + H - 14 * S); if (i < ks) G.cv.disc(q, 2.4f * S, pc, 8); else G.cv.circle(q, 2.4f * S, 1 * u, withA(pc, 0.35f), 0, 8); }
+        text("SPREAD", xr - 40 * S, y + H - 16.3f * S, 4.6f * S, withA(pc, 0.55f), 2);
+    }
     int alive = 0; for (auto& q : b.ships) if (q.side == s.side && bAlive(q)) alive++;
-    if (alive > 1) text(std::to_string(alive - 1) + (alive > 2 ? " OTHER SHIPS STOPPED" : " OTHER SHIP STOPPED"), right ? x + pw : x, y - 15 * u, 9 * u, C_DIM, right ? 2 : 0);
-    yy += 26 * u;
-    auto bar = [&](const char* label, float f, Col c, const std::string& val) {
-        text(label, lx, yy, 10 * u, C_DIM);
-        G.cv.rect(bx, yy + 1 * u, bw, 9 * u, Col(30, 40, 55, 220));
-        G.cv.rect(bx, yy + 1 * u, bw * clampf(f, 0, 1), 9 * u, c);
-        text(val, vx, yy, 10 * u, C_WHITE, 2); yy += row;
-    };
-    float hp = std::max(0.f, sh.hp) / d.armor;
-    bar("ARMOR", hp, hp > 0.5f ? C_GOOD : hp > 0.25f ? C_WARN : C_BAD, std::to_string((int)std::ceil(std::max(0.f, sh.hp))) + "/" + std::to_string((int)d.armor));
-    float kn = std::fabs(s.spd) / BKN;
-    bar("SPEED", kn / d.knots, Col(90, 200, 255), std::to_string((int)std::lround(kn)) + "/" + std::to_string((int)d.knots) + " KN");
-    // engine telegraph: stop, 1/3, 2/3, full
-    text("ENGINE", lx, yy, 10 * u, C_DIM);
-    static const char* TEL[4] = { "STOP", "1/3", "2/3", "FULL" };
-    int tel = b.aiming[s.side] ? 0 : (int)std::lround(clampf(s.thr, 0, 1) * 3);
-    for (int i = 0; i < 4; i++) { float w = (bw - 9 * u) / 4; G.cv.rect(bx + i * (w + 3 * u), yy + 1 * u, w, 9 * u, i <= tel && tel > 0 && i > 0 ? Col(90, 200, 255) : i == 0 && tel == 0 ? C_WARN : Col(30, 40, 55, 220)); }
-    text(b.aiming[s.side] ? "AIMING" : TEL[tel], vx, yy, 10 * u, C_WHITE, 2); yy += row;
-    // weapon + reload
-    int n = MOUNTS[s.t].n; std::string wpn;
-    if (s.t == T_CARRIER) wpn = std::to_string(n) + " PLANES";
-    else if (d.torp) wpn = std::to_string(n) + (n > 1 ? " TORPEDO TUBES" : " TORPEDO TUBE");
-    else wpn = std::to_string(n) + (n > 1 ? " GUNS" : " GUN");
-    text("WEAPON", lx, yy, 10 * u, C_DIM);
-    char wb[96]; snprintf(wb, sizeof wb, "%s  %d DMG  RANGE %d", wpn.c_str(), (int)d.dmg, (int)d.range); text(wb, bx, yy, 10 * u, C_WHITE); yy += row;
-    bool out = s.t == T_CARRIER && planesOut(b, k);
-    float rf = out ? 0 : 1 - clampf(s.reload / d.reload, 0, 1);
-    bar("RELOAD", rf, rf >= 1 ? C_GOOD : C_WARN, out ? "PLANES OUT" : rf >= 1 ? "READY" : "LOADING");
-    // handling: how quickly it gets going and how sharply it turns (PT boat = full)
-    text("HANDLING", lx, yy, 10 * u, C_DIM);
-    float hw = (bw - 8 * u) / 2;
-    text("ACCEL", bx, yy - 1 * u, 8 * u, C_DIM); G.cv.rect(bx + 40 * u, yy + 1 * u, hw - 40 * u, 9 * u, Col(30, 40, 55, 220)); G.cv.rect(bx + 40 * u, yy + 1 * u, (hw - 40 * u) * clampf(d.accel / 1.2f, 0, 1), 9 * u, Col(180, 140, 255));
-    float tx = bx + hw + 8 * u;
-    text("TURN", tx, yy - 1 * u, 8 * u, C_DIM); G.cv.rect(tx + 34 * u, yy + 1 * u, hw - 34 * u, 9 * u, Col(30, 40, 55, 220)); G.cv.rect(tx + 34 * u, yy + 1 * u, (hw - 34 * u) * clampf(d.turn / 1.6f, 0, 1), 9 * u, Col(180, 140, 255));
+    if (alive > 1) text(std::to_string(alive - 1) + (alive > 2 ? " OTHER SHIPS STOPPED" : " OTHER SHIP STOPPED"), right ? x + W : x, y - 15 * u, 9 * u, C_DIM, right ? 2 : 0);
 }
 
 static void drawBattle(int bi, float u) {
