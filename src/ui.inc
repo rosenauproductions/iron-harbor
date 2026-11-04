@@ -10,7 +10,7 @@ static Dev* sideDev(int s) { Side& S = G.side[s]; if (S.cpu || S.devLost) return
 static const char* btnName(int s, int b) {
     Dev* d = sideDev(s);
     if (d && d->wii) { switch (b) { case B_A: return "2"; case B_B: return "1"; case B_Y: return "A"; case B_X: return "-"; case B_RT: return "+"; case B_RB: return "B"; case B_LB: return "B"; case B_START: return "HOME"; } return "?"; }
-    if (d && d->id == -1) { switch (b) { case B_A: return "SPACE"; case B_B: return "BKSP"; case B_Y: return "R"; case B_X: return "F"; case B_RT: return "T"; case B_RB: return "E"; case B_LB: return "Q"; case B_START: return "ESC"; } return "?"; }
+    if (d && d->id == -1 && !XBOXLOOK) { switch (b) { case B_A: return "SPACE"; case B_B: return "BKSP"; case B_Y: return "R"; case B_X: return "F"; case B_RT: return "T"; case B_RB: return "E"; case B_LB: return "Q"; case B_START: return "ESC"; } return "?"; }
     bool n = d && d->nintendo;   // Switch-style pads: buttons named by where they are
     switch (b) { case B_A: return n ? "B" : "A"; case B_B: return n ? "A" : "B"; case B_Y: return n ? "X" : "Y"; case B_X: return n ? "Y" : "X"; case B_RT: return n ? "ZR" : "RT"; case B_RB: return n ? "R" : "RB"; case B_LB: return n ? "L" : "LB"; case B_START: return n ? "+" : "START"; }
     return "?";

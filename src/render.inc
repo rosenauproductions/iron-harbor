@@ -1,3 +1,4 @@
+static bool XBOXLOOK = getenv("IH_XBOXLOOK") != nullptr;   // screenshots: show keyboard players as an Xbox pad
 // Iron Harbor - drawing: the tactical map, battle panels, HUD (included from main.cpp)
 
 static const char* btnName(int s, int b);   // ui.inc: button label for this side's controller
@@ -8,6 +9,44 @@ static View fitView(SDL_Rect r, float w, float h) { View v; v.s = std::min(r.w /
 static void clip(const SDL_Rect* r) { G.cv.flush(G.ren); SDL_RenderSetClipRect(G.ren, r); }
 static void panel(float x, float y, float w, float h, Col edge, float u, int alpha = 225) { G.cv.rect(x, y, w, h, Col(4, 12, 24, alpha)); G.cv.rectLine(x, y, w, h, 1.3f * u, edge, 0.5f); }
 static void text(const std::string& s, float x, float y, float size, Col c, int align = 0) { FONT.draw(G.cv, s.c_str(), V2(x, y), size, c, align); }
+
+// ---------------------------------------------------------------- button prompts
+// A bar of "[button] ACTION" pairs: each button is a filled chip in its pad colour (A green, B red, X blue, Y yellow,
+// triggers/bumpers grey; Wii and keyboard keys light grey) so the controls read at a glance from the couch.
+struct Prompt { std::string key; int b; std::string label; };
+static Col chipCol(int si, int b) {
+    Dev* d = sideDev(si);
+    if (d && (d->gc || (XBOXLOOK && d->id == -1)) && b >= 0) switch (b) {
+        case B_A: return Col(70, 190, 70); case B_B: return Col(220, 70, 60); case B_X: return Col(60, 120, 230); case B_Y: return Col(235, 190, 40);
+    }
+    return Col(200, 208, 220);
+}
+static float chipW(const std::string& k, float sz) { return k.size() <= 1 ? sz * 2.2f : k.size() * sz + sz * 0.8f; }
+static float promptsWidth(const std::vector<Prompt>& ps, float sz) {
+    float w = 0;
+    for (auto& p : ps) { float kw = chipW(p.key, sz); w += kw + sz * 0.7f + FONT.width(p.label.c_str(), sz) + sz * 1.6f; }
+    return w - sz * 1.6f;
+}
+// draws the bar with its left edge at x (align 0), centre (1) or right edge (2); y = top of the chips. Returns its width.
+static float drawPrompts(int si, const std::string& tag, const std::vector<Prompt>& ps, float x, float y, float sz, int align, Col tagCol) {
+    float pad = sz * 0.55f, tw = tag.empty() ? 0 : FONT.width(tag.c_str(), sz) + sz * 1.2f;
+    float w = tw + promptsWidth(ps, sz), h = sz * 2.0f;
+    float x0 = x - (align == 1 ? w * 0.5f : align == 2 ? w : 0);
+    G.cv.rect(x0 - pad * 1.6f, y - pad, w + pad * 3.2f, h + pad * 2, Col(2, 8, 18, 215));
+    G.cv.rectLine(x0 - pad * 1.6f, y - pad, w + pad * 3.2f, h + pad * 2, std::max(1.f, sz * 0.09f), withA(tagCol, 0.55f), 0.4f);
+    float cx = x0, ty = y + (h - sz) * 0.5f;
+    if (!tag.empty()) { text(tag, cx, ty, sz, tagCol); cx += tw; }
+    for (auto& p : ps) {
+        float kw = chipW(p.key, sz); Col cc = chipCol(si, p.b);
+        Col dark(cc.r * 0.28f, cc.g * 0.28f, cc.b * 0.28f); float lw = std::max(1.5f, sz * 0.14f);   // pad-style: bright letter on a dark button, coloured rim
+        if (p.key.size() <= 1) { V2 c(cx + kw * 0.5f, y + h * 0.5f); G.cv.disc(c, h * 0.55f, dark); G.cv.circle(c, h * 0.55f, lw, cc, 0.8f); }
+        else { G.cv.rect(cx, y, kw, h, dark); G.cv.rectLine(cx, y, kw, h, lw, cc, 0.8f); }
+        FONT.draw(G.cv, p.key.c_str(), V2(cx + kw * 0.5f, ty), sz, cc, 1, std::max(1.5f, sz * 0.13f), 1.0f);
+        cx += kw + sz * 0.7f;
+        text(p.label, cx, ty, sz, C_WHITE); cx += FONT.width(p.label.c_str(), sz) + sz * 1.6f;
+    }
+    return w;
+}
 
 static void layoutPanels() {
     int nb = 0, ids[4]; for (int i = 0; i < 4; i++) if (G.bt[i].live) ids[nb++] = i;
@@ -212,8 +251,12 @@ static void drawHud(float u) {
         int hy = 0;
         for (int si = 0; si < 4; si++) {
             Side& S = G.side[si]; if (!S.used || S.cpu || !S.alive || sideInBattle(si)) continue;
-            std::string h = "P" + std::to_string(si + 1) + ": " + btnName(si, B_A) + " SELECT/MOVE  " + btnName(si, B_Y) + " ENGAGE  " + btnName(si, B_X) + " MINES  " + btnName(si, B_RT) + " SWEEP  " + btnName(si, B_RB) + " NEXT FLEET  HARBOR = FORM FLEET";
-            text(h, 16 * u, G.H - (24 + hy * 20) * u, 10 * u, withA(S.col, 0.75f)); hy++;
+            std::vector<Prompt> ps = { { btnName(si, B_A), B_A, "SELECT/MOVE" }, { btnName(si, B_Y), B_Y, "ENGAGE" }, { btnName(si, B_X), B_X, "MINES" },
+                                       { btnName(si, B_RT), B_RT, "SWEEP" }, { btnName(si, B_RB), B_RB, "NEXT FLEET" } };
+            float sz = 17 * u;
+            float maxW = G.W - 60 * u, need = promptsWidth(ps, sz) + FONT.width("P1", sz) + sz * 1.2f;
+            if (need > maxW) sz *= maxW / need;
+            drawPrompts(si, "P" + std::to_string(si + 1), ps, G.W * 0.5f, G.H - (50 + hy * 54) * u, sz, 1, S.col); hy++;
         }
     } else if (ROSTER.w > 0) {
         clip(&ROSTER);
@@ -484,9 +527,11 @@ static void drawBattle(int bi, float u) {
         int owner = sd ? o1 : o0; Side& S = G.side[owner]; int k = b.active[sd];
         float x = sd ? vp.x + vp.w - 14 * u : vp.x + 14 * u; int al = sd ? 2 : 0; float y = vp.y + vp.h - 54 * u;
         if (k >= 0 && !S.cpu) {
-            drawShipStats(b, k, S, sd ? vp.x + vp.w - 14 * u : vp.x + 14 * u, vp.y + vp.h - 34 * u, sd == 1, u);
-            { Dev* dd = sideDev(owner); std::string sp = dd && dd->gc ? (dd->nintendo ? "ZR/ZL" : "RT/LT") : dd && dd->wii ? "+/-" : "T/F";
-              text("HOLD " + std::string(btnName(owner, B_A)) + " AIM+FIRE  " + sp + " SPREAD  " + btnName(owner, B_B) + " NEXT SHIP  " + btnName(owner, B_Y) + " RETREAT", x, vp.y + vp.h - 22 * u, 9 * u, withA(S.col, 0.65f), al); }
+            drawShipStats(b, k, S, sd ? vp.x + vp.w - 14 * u : vp.x + 14 * u, vp.y + vp.h - 62 * u, sd == 1, u);
+            { Dev* dd = sideDev(owner); std::string sp = dd && (dd->gc || XBOXLOOK) ? (dd->nintendo ? "ZR/ZL" : "RT/LT") : dd && dd->wii ? "+/-" : "T/F";
+              std::vector<Prompt> ps = { { btnName(owner, B_A), B_A, "HOLD: AIM+FIRE" }, { sp, B_RT, "SPREAD" }, { btnName(owner, B_B), B_B, "NEXT SHIP" }, { btnName(owner, B_Y), B_Y, "RETREAT" } };
+              float sz = 12 * u, maxW = vp.w * 0.48f - 30 * u, need = promptsWidth(ps, sz); if (need > maxW) sz *= maxW / need;
+              drawPrompts(owner, "", ps, x + (sd ? -1 : 1) * sz * 0.9f, vp.y + vp.h - 40 * u, sz, al, S.col); }
         } else if (S.cpu) text("CPU " + std::string(DIFFN[S.diff]), x, y + 18 * u, 11 * u, withA(S.col, 0.7f), al);
         if (b.retreat[sd] >= 0) text("RETREATING " + std::to_string((int)std::ceil(b.retreat[sd])), x, vp.y + 40 * u, 13 * u, std::fmod(G.time * 3, 1.f) < 0.6f ? C_WARN : withA(C_WARN, 0.4f), al);
         if (S.toastT > 0 && !S.cpu) text(S.toast, x, vp.y + 60 * u, 11 * u, withA(S.col, std::min(1.f, S.toastT * 2)), al);

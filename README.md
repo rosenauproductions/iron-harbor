@@ -14,7 +14,7 @@ Original game by Rosenau Productions. C++17 + SDL2, vector art drawn in code, sy
   RT/LT (Wii +/-, keys T/F) open or tighten the group. Carrier = air strike: 2 planes roll off the deck, bomb, fly back and
   land; crosshair on a ship locks it (a fast, nimble ship can still dodge). Enemy planes that cross paths dogfight (35% each to go down). Logo/key art from Chris as the Batocera marquee + fanart.
   Battle HUD ("E"): telegraph dial with knots, armor plates, ship silhouette with its gun/tube/plane icons, accuracy and
-  turn ladders, spread dots. Up to two battles at once (four admirals). The map pauses when no free human is left, else runs at half speed beside the battle.
+  turn ladders, spread dots. Button prompts at the bottom are big pad-style chips (A green, B red, X blue, Y yellow). Up to two battles at once (four admirals). The map pauses when no free human is left, else runs at half speed beside the battle.
 - Controllers: Xbox 360 pads (SDL; pads without a mapping get the xpad layout), Switch-style pads (button names by position),
   Wii remotes held sideways (direct 1+2 connect or Batocera-paired), keyboard + mouse. Wii remotes: LEDs show the seat
   (all four = connected, no seat yet), rumble on hits/sinkings.
