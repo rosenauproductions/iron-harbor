@@ -281,7 +281,7 @@ static const char* HELP[] = {
     "A SWEEPER IN SWEEP MODE (15 KNOTS) CLEARS ENEMY FIELDS IT CROSSES - WITHOUT TELLING YOU.",
     "SEND A FLEET INTO YOUR OWN HARBOR TO DOCK: FULL REPAIRS, SHIPS BACK IN PORT. 3 TIMES PER GAME.",
     "",
-    "WHEN ENEMY FLEETS MEET THEY FLASH: ENGAGE WITHIN 6 SECONDS OR SAIL ON.",
+    "WHEN ENEMY FLEETS MEET, THE ALARM SOUNDS - ALL HANDS ON DECK: ENGAGE WITHIN 6 SECONDS OR SAIL ON.",
     "IN BATTLE EVERY SHIP STARTS STOPPED. YOU CONTROL ONE SHIP AT A TIME - PRESS NEXT SHIP TO CHOOSE.",
     "THE OTHERS SIT WHERE THEY ARE AND DON'T FIRE. IF YOUR SHIP SINKS, YOU TAKE OVER THE NEXT ONE.",
     "HOLD FIRE TO AIM (YOUR SHIP STOPS DRIVING), RELEASE TO SHOOT. ONE RETICLE PER GUN: RT/LT (WII +/-) OPEN OR TIGHTEN",
@@ -518,6 +518,11 @@ static void testSetup() {
         G.fl[f0].p = V2(MW / 2 - 330, MH / 2 - 260); G.fl[f1].p = V2(MW / 2 - 250, MH / 2 - 240);
         G.fl[f0].p = nearestFree(G.fl[f0].p); G.fl[f1].p = nearestFree(G.fl[f1].p);
         startBattle(f0, f1);
+    }
+    if (getenv("IH_CONTACT")) {   // test: a P1 fleet and a P2 fleet meet in open sea (the general-quarters alarm)
+        int a[2] = { 2, 4 }, b2[2] = { 2, 4 }; int s1 = 1; for (int i = 1; i < 4; i++) if (G.side[i].used) { s1 = i; break; }
+        int f0 = launchFleet(0, a, 2), f1 = launchFleet(s1, b2, 2);
+        G.fl[f0].p = nearestFree(V2(MW / 2 - 500, MH / 2 - 330)); G.fl[f1].p = nearestFree(G.fl[f0].p + V2(70, 10)); G.side[0].sel = f0;
     }
     if (getenv("IH_MENU")) { G.side[0].menu = true; G.side[0].menuSel = 2; G.side[0].pick[0] = 0; G.side[0].pick[1] = 2; G.side[0].npick = 2; }
 }

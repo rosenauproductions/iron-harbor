@@ -2,6 +2,7 @@
 // (included from main.cpp)
 
 static void aiInit(int si);   // ai.inc
+static const char* btnName(int s, int b);   // ui.inc
 static void aiThink(int si, float dt);
 static void aiContacts(float dt);
 
@@ -108,11 +109,21 @@ static void stepMap(float dt) {
         if (ci < 0 && d < CONTACT_R) {
             Contact c; c.a = i; c.b = j; c.t = CONTACT_T; c.cpuT[0] = R.range(0.6f, 2.0f); c.cpuT[1] = R.range(0.6f, 2.0f); G.con.push_back(c);
             AU.play(SND_PING, 0.45f, 0, 1.3f);
-            for (int o : { a.owner, b.owner }) if (!G.side[o].cpu) { toast(G.side[o], "CONTACT! Y TO ENGAGE"); rumbleSide(o, 120); }
+            if (!G.side[a.owner].cpu || !G.side[b.owner].cpu) { AU.play(SND_GQ, 0.6f, 0, 1, 0); G.con.back().alarmT = 1.75f; }
+            for (int o : { a.owner, b.owner }) if (!G.side[o].cpu) { toast(G.side[o], std::string(btnName(o, B_Y)) + " TO ENGAGE"); rumbleSide(o, 160); }
         } else if (ci >= 0) {
             Contact& c = G.con[ci];
             if (d > CONTACT_R * 1.6f) { G.con.erase(G.con.begin() + ci); continue; }
-            if (!c.passed) { c.t -= dt; if (c.t <= 0) c.passed = true; }
+            if (!c.passed) {
+                c.t -= dt; if (c.t <= 0) c.passed = true;
+                // all hands on deck: the alarm bell rings for the local players in this contact until someone engages or they pass
+                bool human = !G.side[a.owner].cpu || !G.side[b.owner].cpu;
+                c.alarmT -= dt;
+                if (human && !c.passed && c.alarmT <= 0) {
+                    c.alarmT = 1.75f; AU.play(SND_GQ, 0.55f, 0, 1, 0);
+                    for (int o : { a.owner, b.owner }) if (!G.side[o].cpu) rumbleSide(o, 80);
+                }
+            }
         }
     }
     aiContacts(dt);

@@ -33,7 +33,7 @@ images in `roms/ports/images/`, entry from `batocera/gamelist-entry.xml`. Log: `
 ## Test switches (env)
 `IH_STATE=game IH_PLAYERS=n` (all CPU) · `IH_HUMAN=1` (P1 = keyboard) · `IH_TEAMS=1` · `IH_MAPRANDOM=1` · `IH_BATTLE=1` (instant battle)
 · `IH_MENU=1` (harbor menu open) · `IH_FAST=n` (steps per frame) · `IH_UNTILOVER=1` · `IH_MAXTIME=s` · `IH_SHOT=frame IH_SHOT_PATH=x.bmp`
-· `IH_WINDOW=WxH` · `IH_MUTE=1` · `IH_NOWII=1` · `IH_WIIFAKE=n` (simulated remotes that press 2 in the lobby) · `IH_LOBBY=1` · `IH_BTEST=1` (with IH_HUMAN IH_BATTLE: scripted fire, ship switch, steer, fire; `=2`: locked carrier strike + wide battleship salvo; `=3`: both carriers launch at once, dogfight) · `IH_SEED=n` · `IH_SEED_RNG=n`.
+· `IH_WINDOW=WxH` · `IH_MUTE=1` · `IH_NOWII=1` · `IH_WIIFAKE=n` (simulated remotes that press 2 in the lobby) · `IH_LOBBY=1` · `IH_CONTACT=1` (P1 and P2 fleets meet: alarm) · `IH_BTEST=1` (with IH_HUMAN IH_BATTLE: scripted fire, ship switch, steer, fire; `=2`: locked carrier strike + wide battleship salvo; `=3`: both carriers launch at once, dogfight) · `IH_SEED=n` · `IH_SEED_RNG=n`.
 Headless: `xvfb-run -a -s "-screen 0 1920x1080x24" env IH_MUTE=1 SDL_AUDIODRIVER=dummy IH_NOWII=1 ... build/ih_test`.
 
 ## Next

@@ -7,7 +7,7 @@
 #include "gfx.h"
 
 enum Snd { SND_GUN, SND_SPLASH, SND_TORP, SND_BOOM, SND_HIT, SND_PING, SND_KLAXON, SND_ERR, SND_UI, SND_UI_OK,
-           SND_WIN, SND_LOSE, SND_AGROUND, SND_MINE, SND_LAUNCH, SND_DOCK, SND_SWEEP, SND_N };
+           SND_WIN, SND_LOSE, SND_AGROUND, SND_MINE, SND_LAUNCH, SND_DOCK, SND_SWEEP, SND_GQ, SND_N };
 
 struct Audio {
     static const int RATE = 44100;
@@ -44,6 +44,12 @@ struct Audio {
         snd[SND_LAUNCH] = gen(0.9f, [](float t, float, Rng&, float&) { float f = t < 0.45f ? 196 : 262; return (std::sin(2 * PI * f * t) + 0.5f * std::sin(2 * PI * f * 1.5f * t)) * 0.16f * std::min(1.f, t * 30) * std::exp(-std::fmod(t, 0.45f) * 3); });
         snd[SND_DOCK] = gen(0.6f, [](float t, float, Rng&, float&) { float f = t < 0.2f ? 523.f : t < 0.4f ? 440.f : 392.f; return std::sin(2 * PI * f * t) * 0.22f * std::exp(-std::fmod(t, 0.2f) * 10); });
         snd[SND_SWEEP] = gen(0.35f, [](float t, float, Rng&, float& ph) { float f = 600 + 900 * t / 0.35f; ph += 2 * PI * f / RATE; return std::sin(ph) * 0.18f * std::min(1.f, (0.35f - t) * 12); });
+        // general quarters: a ship's alarm bell, struck 4 times (bong-bong-bong-bong)
+        snd[SND_GQ] = gen(1.6f, [](float t, float, Rng&, float&) {
+            float lt = std::fmod(t, 0.34f); if (t > 1.36f) lt = t - 1.02f;
+            float e = std::exp(-lt * 7.5f) * std::min(1.f, lt * 600);
+            const float f0 = 560; float v = std::sin(2 * PI * f0 * lt) + 0.55f * std::sin(2 * PI * f0 * 2.76f * lt) + 0.3f * std::sin(2 * PI * f0 * 5.4f * lt) * std::exp(-lt * 14);
+            return v * e * 0.22f; });
         buildMusic();
     }
     // 48 s ambient loop: low swells (the sea) under slow minor chords.

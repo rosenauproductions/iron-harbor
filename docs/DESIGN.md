@@ -23,6 +23,7 @@ Original naval strategy/battle game by Rosenau Productions for the Batocera box 
   A sweeper in SWEEP mode (15 kn) clears enemy fields it crosses, silently.
 - Repairs: sail a fleet into your own harbor = docked, fully repaired, ships back in the harbor. 3 dockings per game.
 - Contact: hostile fleets that come close flash for 6 s; either side can ENGAGE. Otherwise they pass.
+  With a local player involved: general-quarters alarm bell (repeats every 1.75 s), "ALL HANDS ON DECK" over the contact, red edge pulse, rumble.
 - Battle: zoomed view of that patch of sea (real islands). Every ship starts stopped. Each admiral (CPU too) controls ONE ship
   at a time; NEXT SHIP picks another. The others sit where they are and don't fire. If yours sinks, you take the next one.
   Hold FIRE to aim (the ship stops driving), release to shoot. One shot per gun mount, each from its own turret:

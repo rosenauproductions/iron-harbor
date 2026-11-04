@@ -76,7 +76,7 @@ struct Fleet {
     int battle = -1; float mineCd = 0; int lastMine = -1; float flashT = 0; int role = 0; float aiT = 0; float launched = 0; std::vector<V2> trail; float trailT = 0;
 };
 struct Mine { int owner; V2 p; float r; bool dead = false, revealed = false; float laidT = 0; };
-struct Contact { int a, b; float t; bool passed = false; float cpuT[2] = { 0, 0 }; };
+struct Contact { int a, b; float t; bool passed = false; float cpuT[2] = { 0, 0 }; float alarmT = 0; };   // alarmT: next general-quarters bell
 enum { P_SPARK, P_DOT, P_RING, P_DEBRIS, P_SMOKE };
 struct Part { V2 p, v; float life, max, a, b; Col c; int kind; int layer; };   // layer -1 map, else battle index
 

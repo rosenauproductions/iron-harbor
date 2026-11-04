@@ -83,7 +83,9 @@ static void drawFleetIcon(const Fleet& f, int fi, const View& v, float u, bool s
     }
 }
 
+static bool ALARM = false;   // a contact with a local player is open: red edge pulse
 static void drawMap(SDL_Rect vp, float u) {
+    ALARM = false;
     bool small = vp.w < G.W * 0.6f;
     clip(&vp);
     View v = fitView(vp, MW, MH); VMAP = v;
@@ -128,9 +130,22 @@ static void drawMap(SDL_Rect vp, float u) {
         if (c.passed) continue; Fleet& a = G.fl[c.a]; Fleet& b = G.fl[c.b]; if (a.dead || b.dead || a.battle >= 0 || b.battle >= 0) continue;
         V2 m = v.w2s((a.p + b.p) * 0.5f);
         G.cv.dash(v.w2s(a.p), v.w2s(b.p), 4 * u, 4 * u, 1.2f * u, C_WARN, G.time * 30);
-        if (!small) text("CONTACT " + std::to_string((int)std::ceil(c.t)), m.x, m.y - 30 * u, 12 * u, C_WARN, 1);
+        bool human = !G.side[a.owner].cpu || !G.side[b.owner].cpu;
+        if (human) {
+            bool on = std::fmod(G.time * 2.6f, 1.f) < 0.6f;
+            float top = std::min(v.w2s(a.p).y, v.w2s(b.p).y);
+            text("ALL HANDS ON DECK", m.x, top - (small ? 26 : 70) * u, (small ? 10 : 18) * u, on ? C_BAD : withA(C_BAD, 0.35f), 1);
+            if (!small) text("ENGAGE WINDOW " + std::to_string((int)std::ceil(c.t)), m.x, top - 44 * u, 11 * u, C_WARN, 1);
+            float r = (28 + 10 * std::sin(G.time * 9)) * u; G.cv.circle(m, r, 1.5f * u, withA(C_BAD, 0.6f), 0.6f, 24);
+            ALARM = true;
+        } else if (!small) text("CONTACT " + std::to_string((int)std::ceil(c.t)), m.x, m.y - 30 * u, 12 * u, C_WARN, 1);
     }
     drawParts(-1, v, u);
+    if (ALARM) {   // red pulse around the edge of the map
+        float k = 0.5f + 0.5f * std::sin(G.time * 8); Col rc = Col(255, 40, 40, (int)(40 + 70 * k)); float w = (6 + 6 * k) * u;
+        G.cv.rect((float)vp.x, (float)vp.y, (float)vp.w, w, rc); G.cv.rect((float)vp.x, (float)(vp.y + vp.h) - w, (float)vp.w, w, rc);
+        G.cv.rect((float)vp.x, (float)vp.y, w, (float)vp.h, rc); G.cv.rect((float)(vp.x + vp.w) - w, (float)vp.y, w, (float)vp.h, rc);
+    }
     // cursors
     for (int si = 0; si < 4; si++) {
         Side& S = G.side[si]; if (!S.used || S.cpu || !S.alive || sideInBattle(si)) continue;
