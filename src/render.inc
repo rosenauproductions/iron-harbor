@@ -303,16 +303,12 @@ static void drawBattle(int bi, float u) {
         int owner = sd ? o1 : o0; Side& S = G.side[owner]; int k = b.active[sd];
         float x = sd ? vp.x + vp.w - 14 * u : vp.x + 14 * u; int al = sd ? 2 : 0; float y = vp.y + vp.h - 54 * u;
         if (k >= 0 && !S.cpu) {
-            if (b.fleetMode[sd]) {
-                int n = 0, rdy = 0, tel = 0; for (int j = 0; j < (int)b.ships.size(); j++) { BShip& q = b.ships[j]; if (q.side == sd && bAlive(q)) { n++; if (q.reload <= 0) rdy++; tel = q.telegraph; } }
-                text("WHOLE FLEET (" + std::to_string(n) + (n == 1 ? " SHIP)" : " SHIPS)"), x, y, 12 * u, S.col, al);
-                text(std::to_string(rdy) + "/" + std::to_string(n) + " READY   ENGINE " + std::to_string(tel) + "/3", x, y + 18 * u, 11 * u, rdy ? C_GOOD : C_DIM, al);
-            } else {
+            {
                 BShip& s = b.ships[k]; const SDef& d = SD[s.t];
-                text(std::string(d.name) + "  " + (d.torp ? "TORPEDO" : "GUNS") + "  (OTHERS HOLD)", x, y, 12 * u, S.col, al);
+                text(std::string(d.name) + "  " + (d.torp ? "TORPEDO" : "GUNS") + "  (OTHERS STOPPED)", x, y, 12 * u, S.col, al);
                 text(std::string(s.reload > 0 ? "RELOADING" : "READY") + "   ENGINE " + std::to_string(s.telegraph) + "/3", x, y + 18 * u, 11 * u, s.reload > 0 ? C_DIM : C_GOOD, al);
             }
-            text("HOLD " + std::string(btnName(owner, B_A)) + " AIM+FIRE  " + btnName(owner, B_B) + " FLEET/NEXT SHIP  " + btnName(owner, B_Y) + " RETREAT", x, y + 36 * u, 9 * u, withA(S.col, 0.65f), al);
+            text("HOLD " + std::string(btnName(owner, B_A)) + " AIM+FIRE  " + btnName(owner, B_B) + " NEXT SHIP  " + btnName(owner, B_Y) + " RETREAT", x, y + 36 * u, 9 * u, withA(S.col, 0.65f), al);
         } else if (S.cpu) text("CPU " + std::string(DIFFN[S.diff]), x, y + 18 * u, 11 * u, withA(S.col, 0.7f), al);
         if (b.retreat[sd] >= 0) text("RETREATING " + std::to_string((int)std::ceil(b.retreat[sd])), x, vp.y + 40 * u, 13 * u, std::fmod(G.time * 3, 1.f) < 0.6f ? C_WARN : withA(C_WARN, 0.4f), al);
         if (S.toastT > 0 && !S.cpu) text(S.toast, x, vp.y + 60 * u, 11 * u, withA(S.col, std::min(1.f, S.toastT * 2)), al);

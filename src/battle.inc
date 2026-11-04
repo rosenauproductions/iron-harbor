@@ -31,24 +31,7 @@ static void nextActive(Battle& b, int sd, int dir = 1) {
     }
     b.active[sd] = -1;
 }
-static int firstAlive(const Battle& b, int sd, int dir) {
-    int n = (int)b.ships.size();
-    for (int k = 0; k < n; k++) { int i = dir > 0 ? k : n - 1 - k; if (b.ships[i].side == sd && bAlive(b.ships[i])) return i; }
-    return -1;
-}
-// a human's B / RB (LB backwards): FLEET -> ship 1 -> ship 2 -> ... -> FLEET
-static void cycleControl(Battle& b, int sd, int dir) {
-    b.aiming[sd] = false;
-    if (b.fleetMode[sd]) { int i = firstAlive(b, sd, dir); if (i >= 0) { b.fleetMode[sd] = false; b.active[sd] = i; } return; }
-    int n = (int)b.ships.size(), cur = b.active[sd];
-    for (int k = 1; k < n; k++) {
-        int i = cur + dir * k; if (i < 0 || i >= n) break;
-        if (b.ships[i].side == sd && bAlive(b.ships[i])) { b.active[sd] = i; return; }
-    }
-    b.fleetMode[sd] = true;   // past the last ship: back to the whole fleet
-    if (b.active[sd] < 0 || !bAlive(b.ships[b.active[sd]])) b.active[sd] = firstAlive(b, sd, 1);
-}
-static bool controlled(const Battle& b, int k) { int sd = b.ships[k].side; return b.fleetMode[sd] || b.active[sd] == k; }
+static bool controlled(const Battle& b, int k) { return b.active[b.ships[k].side] == k; }
 
 static int startBattle(int fa, int fb) {
     int bi = -1; for (int i = 0; i < 4; i++) if (!G.bt[i].live) { bi = i; break; }
@@ -75,7 +58,7 @@ static int startBattle(int fa, int fb) {
             float pad = SD[s.t].L * 0.6f + 10;
             V2 at = want; bool ok = !bBlocked(b, at, pad);
             for (float r = 20; r < 600 && !ok; r += 20) for (int a = 0; a < 16 && !ok; a++) { V2 q = want + fromAng(a * PI / 8) * r; if (!bBlocked(b, q, pad)) { at = q; ok = true; } }
-            s.p = at; s.ang = std::atan2(-d.y, -d.x); s.spd = SD[s.t].knots * BKN * 0.4f; s.thr = 0.66f; s.telegraph = 2; s.reload = R.range(0.5f, 1.5f); s.wobble = R.f() < 0.5f ? 1.f : -1.f;
+            s.p = at; s.ang = std::atan2(-d.y, -d.x); s.spd = 0; s.thr = 0; s.telegraph = 0;   // every ship starts stopped s.reload = R.range(0.5f, 1.5f); s.wobble = R.f() < 0.5f ? 1.f : -1.f;
             b.ships.push_back(s);
             if (i == flagship(f)) b.active[sd] = (int)b.ships.size() - 1;
         }
@@ -97,7 +80,7 @@ static void bDamage(Battle& b, int bi, int k, float dmg, bool aground = false) {
         explode(bi, s.p, 26, G.side[s.owner].col); AU.play(SND_BOOM, 0.75f); b.shake = std::max(b.shake, 14.f);
         rumbleSide(s.owner, 400);
         printf("battle %d: P%d %s sunk\n", bi, s.owner + 1, SD[s.t].name);
-        if (b.active[s.side] == k) { nextActive(b, s.side); if (!b.fleetMode[s.side] && !G.side[s.owner].cpu) { b.fleetMode[s.side] = true; b.aiming[s.side] = false; } }
+        if (b.active[s.side] == k) nextActive(b, s.side);
     } else rumbleSide(s.owner, 90);
 }
 
@@ -163,7 +146,7 @@ static void cpuHelm(Battle& b, int bi, int k, float err, float dt) {
     }
 }
 
-// hold FIRE: one crosshair for the ships under control (they stop driving); release: each of them in range and loaded fires at it
+// hold FIRE: crosshair for the controlled ship (it stops driving); release: it fires if loaded and in range
 static void humanAim(Battle& b, int bi, int sd, const Helm& h, float dt) {
     float maxR = 0; V2 c; float fx = 0, fy = 0; int n = 0;
     for (int k = 0; k < (int)b.ships.size(); k++) if (b.ships[k].side == sd && bAlive(b.ships[k]) && controlled(b, k)) {
@@ -186,7 +169,7 @@ static void humanAim(Battle& b, int bi, int sd, const Helm& h, float dt) {
         fire(b, bi, k, b.cross[sd]); fired++;
     }
     if (!fired) AU.play(SND_ERR, 0.4f);
-    printf("battle %d: P%d fired %d ship%s (%s)\n", bi, G.fl[b.fl[sd]].owner + 1, fired, fired == 1 ? "" : "s", b.fleetMode[sd] ? "fleet" : SD[b.ships[b.active[sd]].t].shortName);
+    printf("battle %d: P%d fired %d ship%s (%s)\n", bi, G.fl[b.fl[sd]].owner + 1, fired, fired == 1 ? "" : "s", SD[b.ships[b.active[sd]].t].shortName);
 }
 static void humanDrive(Battle& b, int k, const Helm& h, float dt) {
     BShip& s = b.ships[k]; const SDef& d = SD[s.t];
@@ -220,8 +203,8 @@ static void stepBattle(int bi, float dt) {
             h.rudder = (dv->b[B_RIGHT] ? 1 : 0) - (dv->b[B_LEFT] ? 1 : 0);
             if (pr(*dv, B_UP)) h.tele = 1; if (pr(*dv, B_DOWN)) h.tele = -1;
             if (!dv->analog && !dv->b[B_A]) h.stick = V2();
-            if (pr(*dv, B_B) || pr(*dv, B_RB)) { cycleControl(b, sd, 1); AU.play(SND_UI, 0.5f); }
-            if (pr(*dv, B_LB)) { cycleControl(b, sd, -1); AU.play(SND_UI, 0.5f); }
+            if (pr(*dv, B_B) || pr(*dv, B_RB)) { nextActive(b, sd, 1); AU.play(SND_UI, 0.5f); }
+            if (pr(*dv, B_LB)) { nextActive(b, sd, -1); AU.play(SND_UI, 0.5f); }
             if (h.tele) AU.play(SND_UI, 0.4f);
             if (pr(*dv, B_Y)) {
                 if (b.retreat[sd] < 0) { b.retreat[sd] = 15; AU.play(SND_KLAXON, 0.4f); toast(S, "RETREAT IN 15 S - Y AGAIN TO STAY"); }
@@ -236,9 +219,9 @@ static void stepBattle(int bi, float dt) {
         if (h.use) humanAim(b, bi, sd, h, dt);
         for (int k = 0; k < (int)b.ships.size(); k++) {
             BShip& s = b.ships[k]; if (s.side != sd || !bAlive(s)) continue;
-            if (!h.use) cpuHelm(b, bi, k, S.cpu ? AIERR[S.diff] : 0.12f, dt);
-            else if (controlled(b, k)) humanDrive(b, k, h, dt);
-            else sitShip(s);
+            if (!controlled(b, k)) sitShip(s);   // one ship at a time, for CPU admirals too
+            else if (h.use) humanDrive(b, k, h, dt);
+            else cpuHelm(b, bi, k, S.cpu ? AIERR[S.diff] : 0.12f, dt);
         }
     }
     // physics

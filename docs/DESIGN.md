@@ -23,11 +23,9 @@ Original naval strategy/battle game by Rosenau Productions for the Batocera box 
   A sweeper in SWEEP mode (15 kn) clears enemy fields it crosses, silently.
 - Repairs: sail a fleet into your own harbor = docked, fully repaired, ships back in the harbor. 3 dockings per game.
 - Contact: hostile fleets that come close flash for 6 s; either side can ENGAGE. Otherwise they pass.
-- Battle: zoomed view of that patch of sea (real islands). Control is FLEET or ONE SHIP (map stays fleet-only):
-  FLEET (start): every ship follows your stick and fires together on one crosshair (ships out of range hold fire).
-  NEXT SHIP cycles FLEET -> ship 1 -> ship 2 -> ship 3 -> FLEET; in ONE SHIP the others sit (engines stop, no firing).
-  If the ship you control sinks, control goes back to the fleet. CPU admirals always fight with every ship.
-  Hold FIRE to aim (the controlled ships stop driving), release to shoot. Shells land on the crosshair; torpedoes hit anything on their path.
+- Battle: zoomed view of that patch of sea (real islands). Every ship starts stopped. Each admiral (CPU too) controls ONE ship
+  at a time; NEXT SHIP picks another. The others sit where they are and don't fire. If yours sinks, you take the next one.
+  Hold FIRE to aim (the ship stops driving), release to shoot. Shells land on the crosshair; torpedoes hit anything on their path.
   Land: 12 HP every 2 s. RETREAT: 15 s alarm, then the fleet slips away.
 - Win: sail the carrier or the troop transport into an enemy harbor (any ship, once both are sunk). Captured = out.
   Free-for-all or 2v2 (P1+P3 vs P2+P4). Last admiral (or team) standing wins.
@@ -41,7 +39,7 @@ One shared TV. No battle: map full screen. While battles run, the map pauses if 
 |---|---|---|---|
 | Move cursor / steer | left stick or d-pad | d-pad | arrows / WASD, mouse |
 | Select / order / hold to aim, release to fire | A | 2 | Space / left click |
-| Back / battle: FLEET -> next ship -> FLEET | B | 1 | Backspace / right click |
+| Back / battle: next ship | B | 1 | Backspace / right click |
 | Engage / retreat | Y | A | R |
 | Lay mines | X | - (minus) | F |
 | Sweep mode on/off | RT | + (plus) | T |
