@@ -26,6 +26,8 @@ Original naval strategy/battle game by Rosenau Productions for the Batocera box 
   With a local player involved: general-quarters alarm bell (repeats every 1.75 s), "ALL HANDS ON DECK" over the contact, red edge pulse, rumble.
 - Battle: zoomed view of that patch of sea (real islands). Every ship starts stopped. Each admiral (CPU too) controls ONE ship
   at a time; NEXT SHIP picks another. The others sit where they are and don't fire. If yours sinks, you take the next one.
+  Stats panel (bottom corner, your colour) for the ship you control: armor, speed / top speed, engine telegraph,
+  weapon (mounts, damage, range), reload, handling (acceleration, turning).
   Hold FIRE to aim (the ship stops driving), release to shoot. One shot per gun mount, each from its own turret:
   battleship 3 (triangle), destroyer 2, carrier 2 planes, sub 2 bow tubes, PT 2 side tubes, others 1; salvo damage = the ship's damage.
   The reticles show the group; RT/LT (right stick, Wii +/-, keyboard T/F) open or tighten it.

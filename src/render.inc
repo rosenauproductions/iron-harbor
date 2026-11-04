@@ -285,6 +285,50 @@ static void drawShip(const BShip& s, const View& v, float u, bool active, const 
     }
 }
 
+// the controlled ship's stats, bottom corner of the battle view (left for the first fleet, right for the second)
+static void drawShipStats(const Battle& b, int k, const Side& S, float ax, float bottom, bool right, float u) {
+    const BShip& s = b.ships[k]; const SDef& d = SD[s.t]; const Ship& sh = G.side[s.owner].ship[s.ship];
+    float pw = 410 * u, ph = 176 * u, x = right ? ax - pw : ax, y = bottom - ph;
+    panel(x, y, pw, ph, S.col, u, 205);
+    float lx = x + 12 * u, bx = x + 100 * u, bw = pw - 100 * u - 96 * u, vx = x + pw - 12 * u, row = 21 * u; float yy = y + 10 * u;
+    text(d.name, lx, yy, 15 * u, S.col);
+    int alive = 0; for (auto& q : b.ships) if (q.side == s.side && bAlive(q)) alive++;
+    if (alive > 1) text(std::to_string(alive - 1) + (alive > 2 ? " OTHER SHIPS STOPPED" : " OTHER SHIP STOPPED"), right ? x + pw : x, y - 15 * u, 9 * u, C_DIM, right ? 2 : 0);
+    yy += 26 * u;
+    auto bar = [&](const char* label, float f, Col c, const std::string& val) {
+        text(label, lx, yy, 10 * u, C_DIM);
+        G.cv.rect(bx, yy + 1 * u, bw, 9 * u, Col(30, 40, 55, 220));
+        G.cv.rect(bx, yy + 1 * u, bw * clampf(f, 0, 1), 9 * u, c);
+        text(val, vx, yy, 10 * u, C_WHITE, 2); yy += row;
+    };
+    float hp = std::max(0.f, sh.hp) / d.armor;
+    bar("ARMOR", hp, hp > 0.5f ? C_GOOD : hp > 0.25f ? C_WARN : C_BAD, std::to_string((int)std::ceil(std::max(0.f, sh.hp))) + "/" + std::to_string((int)d.armor));
+    float kn = std::fabs(s.spd) / BKN;
+    bar("SPEED", kn / d.knots, Col(90, 200, 255), std::to_string((int)std::lround(kn)) + "/" + std::to_string((int)d.knots) + " KN");
+    // engine telegraph: stop, 1/3, 2/3, full
+    text("ENGINE", lx, yy, 10 * u, C_DIM);
+    static const char* TEL[4] = { "STOP", "1/3", "2/3", "FULL" };
+    int tel = b.aiming[s.side] ? 0 : (int)std::lround(clampf(s.thr, 0, 1) * 3);
+    for (int i = 0; i < 4; i++) { float w = (bw - 9 * u) / 4; G.cv.rect(bx + i * (w + 3 * u), yy + 1 * u, w, 9 * u, i <= tel && tel > 0 && i > 0 ? Col(90, 200, 255) : i == 0 && tel == 0 ? C_WARN : Col(30, 40, 55, 220)); }
+    text(b.aiming[s.side] ? "AIMING" : TEL[tel], vx, yy, 10 * u, C_WHITE, 2); yy += row;
+    // weapon + reload
+    int n = MOUNTS[s.t].n; std::string wpn;
+    if (s.t == T_CARRIER) wpn = std::to_string(n) + " PLANES";
+    else if (d.torp) wpn = std::to_string(n) + (n > 1 ? " TORPEDO TUBES" : " TORPEDO TUBE");
+    else wpn = std::to_string(n) + (n > 1 ? " GUNS" : " GUN");
+    text("WEAPON", lx, yy, 10 * u, C_DIM);
+    char wb[96]; snprintf(wb, sizeof wb, "%s  %d DMG  RANGE %d", wpn.c_str(), (int)d.dmg, (int)d.range); text(wb, bx, yy, 10 * u, C_WHITE); yy += row;
+    bool out = s.t == T_CARRIER && planesOut(b, k);
+    float rf = out ? 0 : 1 - clampf(s.reload / d.reload, 0, 1);
+    bar("RELOAD", rf, rf >= 1 ? C_GOOD : C_WARN, out ? "PLANES OUT" : rf >= 1 ? "READY" : "LOADING");
+    // handling: how quickly it gets going and how sharply it turns (PT boat = full)
+    text("HANDLING", lx, yy, 10 * u, C_DIM);
+    float hw = (bw - 8 * u) / 2;
+    text("ACCEL", bx, yy - 1 * u, 8 * u, C_DIM); G.cv.rect(bx + 40 * u, yy + 1 * u, hw - 40 * u, 9 * u, Col(30, 40, 55, 220)); G.cv.rect(bx + 40 * u, yy + 1 * u, (hw - 40 * u) * clampf(d.accel / 1.2f, 0, 1), 9 * u, Col(180, 140, 255));
+    float tx = bx + hw + 8 * u;
+    text("TURN", tx, yy - 1 * u, 8 * u, C_DIM); G.cv.rect(tx + 34 * u, yy + 1 * u, hw - 34 * u, 9 * u, Col(30, 40, 55, 220)); G.cv.rect(tx + 34 * u, yy + 1 * u, (hw - 34 * u) * clampf(d.turn / 1.6f, 0, 1), 9 * u, Col(180, 140, 255));
+}
+
 static void drawBattle(int bi, float u) {
     Battle& b = G.bt[bi]; SDL_Rect vp = b.vp; clip(&vp);
     View v = fitView(vp, BW, BH);
@@ -365,13 +409,9 @@ static void drawBattle(int bi, float u) {
         int owner = sd ? o1 : o0; Side& S = G.side[owner]; int k = b.active[sd];
         float x = sd ? vp.x + vp.w - 14 * u : vp.x + 14 * u; int al = sd ? 2 : 0; float y = vp.y + vp.h - 54 * u;
         if (k >= 0 && !S.cpu) {
-            {
-                BShip& s = b.ships[k]; const SDef& d = SD[s.t];
-                text(std::string(d.name) + "  " + (s.t == T_CARRIER ? "AIR STRIKE" : d.torp ? "TORPEDOES" : "GUNS") + "  (OTHERS STOPPED)", x, y, 12 * u, S.col, al);
-                text(std::string(s.t == T_CARRIER && planesOut(b, k) ? "PLANES OUT" : s.reload > 0 ? "RELOADING" : "READY") + "   ENGINE " + std::to_string(s.telegraph) + "/3", x, y + 18 * u, 11 * u, s.reload > 0 ? C_DIM : C_GOOD, al);
-            }
+            drawShipStats(b, k, S, sd ? vp.x + vp.w - 14 * u : vp.x + 14 * u, vp.y + vp.h - 34 * u, sd == 1, u);
             { Dev* dd = sideDev(owner); std::string sp = dd && dd->gc ? (dd->nintendo ? "ZR/ZL" : "RT/LT") : dd && dd->wii ? "+/-" : "T/F";
-              text("HOLD " + std::string(btnName(owner, B_A)) + " AIM+FIRE  " + sp + " SPREAD  " + btnName(owner, B_B) + " NEXT SHIP  " + btnName(owner, B_Y) + " RETREAT", x, y + 36 * u, 9 * u, withA(S.col, 0.65f), al); }
+              text("HOLD " + std::string(btnName(owner, B_A)) + " AIM+FIRE  " + sp + " SPREAD  " + btnName(owner, B_B) + " NEXT SHIP  " + btnName(owner, B_Y) + " RETREAT", x, vp.y + vp.h - 22 * u, 9 * u, withA(S.col, 0.65f), al); }
         } else if (S.cpu) text("CPU " + std::string(DIFFN[S.diff]), x, y + 18 * u, 11 * u, withA(S.col, 0.7f), al);
         if (b.retreat[sd] >= 0) text("RETREATING " + std::to_string((int)std::ceil(b.retreat[sd])), x, vp.y + 40 * u, 13 * u, std::fmod(G.time * 3, 1.f) < 0.6f ? C_WARN : withA(C_WARN, 0.4f), al);
         if (S.toastT > 0 && !S.cpu) text(S.toast, x, vp.y + 60 * u, 11 * u, withA(S.col, std::min(1.f, S.toastT * 2)), al);
