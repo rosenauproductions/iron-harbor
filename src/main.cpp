@@ -26,7 +26,7 @@ enum { T_CARRIER, T_TRANSPORT, T_BATTLESHIP, T_SUB, T_DESTROYER, T_PT, T_LAYER, 
 struct SDef { const char* name; const char* shortName; char letter; int count; float knots, accel, turn, armor, dmg, range, reload; bool torp; float L, Wd; };
 // range in battle units (the battle sea is 1600 x 900); accel/turn are handling multipliers
 static const SDef SD[NT] = {
-    { "AIRCRAFT CARRIER", "CARRIER", 'C', 1, 30, 0.35f, 0.55f, 25, 10, 620, 2.6f, false, 96, 24 },
+    { "AIRCRAFT CARRIER", "CARRIER", 'C', 1, 30, 0.35f, 0.55f, 25, 10, 1000, 2.6f, false, 96, 24 },
     { "TROOP TRANSPORT", "TRANSPORT", 'T', 1, 30, 0.25f, 0.50f, 25, 7, 260, 2.2f, false, 76, 20 },
     { "BATTLESHIP", "BATTLESHIP", 'B', 2, 35, 0.50f, 0.70f, 30, 12, 620, 3.0f, false, 88, 18 },
     { "SUBMARINE", "SUBMARINE", 'S', 1, 35, 0.80f, 1.00f, 15, 20, 780, 4.5f, true, 54, 10 },
@@ -34,6 +34,20 @@ static const SDef SD[NT] = {
     { "PT BOAT", "PT BOAT", 'P', 2, 40, 1.20f, 1.60f, 5, 12, 360, 3.5f, true, 32, 9 },
     { "MINE LAYER", "MINE LAYER", 'M', 1, 20, 0.50f, 0.80f, 15, 6, 260, 2.2f, false, 56, 14 },
     { "MINE SWEEPER", "SWEEPER", 'W', 2, 30, 0.50f, 0.90f, 20, 6, 780, 2.4f, false, 48, 12 },
+};
+// gun turrets / torpedo tubes per ship: position on the hull (x = fraction of length, forward +; y = fraction of beam) and
+// the way the gun rests (+1 forward, -1 aft). One salvo = one shot per mount; each shot does dmg / mounts.
+struct Mount { float x, y, rest; };
+struct MountSet { int n; Mount m[3]; };
+static const MountSet MOUNTS[8] = {
+    { 2, { { -0.40f, -0.18f, 1 }, { -0.40f, 0.18f, 1 } } },            // carrier: two planes, starting at the stern of the deck
+    { 1, { { 0.34f, 0, 1 } } },                                          // transport
+    { 3, { { 0.30f, 0, 1 }, { 0.15f, 0, 1 }, { -0.30f, 0, -1 } } },     // battleship: three turrets
+    { 2, { { 0.46f, -0.18f, 1 }, { 0.46f, 0.18f, 1 } } },               // submarine: two bow tubes
+    { 2, { { 0.28f, 0, 1 }, { -0.32f, 0, -1 } } },                      // destroyer: fore and aft guns
+    { 2, { { 0.05f, -0.38f, 1 }, { 0.05f, 0.38f, 1 } } },               // PT boat: two side tubes
+    { 1, { { 0.30f, 0, 1 } } },                                          // mine layer
+    { 1, { { 0.30f, 0, 1 } } },                                          // mine sweeper
 };
 static const int NSHIPS = 13, MAXFLEETS = 4, MAXMINES = 4, DOCKS = 3;
 static const float MINE_DMG = 20, MINE_R = 62, CONTACT_R = 105, CONTACT_T = 6, HARBOR_R = 62, SWEEP_KN = 15;
@@ -68,10 +82,11 @@ struct Part { V2 p, v; float life, max, a, b; Col c; int kind; int layer; };   /
 
 // battle
 struct BShip { int side, owner, fleet, ship, t; V2 p, v; float ang, spd, thr = 0, reload = 0, landT = 0, flash = 0, sinkT = -1, aimT = 0, smokeT = 0; bool aiming = false; V2 aimAt; std::vector<V2> wake; float wakeT = 0; int telegraph = 2; int target = -1; float retarget = 0, wobble = 0; };
-struct Shot { int side; V2 from, to, p, dir; float t = 0, dur = 1, dmg, range, gone = 0; bool torp, dead = false; int shooter; };
+struct Shot { int side; V2 from, to, p, dir; float t = 0, dur = 1, dmg, range, gone = 0, wait = 0; bool torp, dead = false; int shooter, mount = 0;
+              bool plane = false; int tgt = -1, st = 0; float ang = 0, alt = 0, spd = 0; };   // plane: carrier aircraft (st 0 deck run, 1 attack, 2 return)   // wait: salvo stagger before it leaves the mount
 struct Battle {
     bool live = false; int fl[2]; V2 center; std::vector<BShip> ships; std::vector<Shot> shots; std::vector<std::vector<V2>> land; std::vector<V2> landC;
-    int active[2] = { -1, -1 }; V2 cross[2];   /* each admiral controls ships[active[side]] only; the rest sit */ bool aiming[2] = { false, false }; float retreat[2] = { -1, -1 }; float t = 0, overT = -1; int winner = -1; int fled = -1;
+    int active[2] = { -1, -1 }; float spread[2] = { 1, 1 }; V2 cross[2];   /* spread: how wide the salvo's reticles are grouped. each admiral controls ships[active[side]] only; the rest sit */ bool aiming[2] = { false, false }; float retreat[2] = { -1, -1 }; float t = 0, overT = -1; int winner = -1; int fled = -1;
     SDL_Rect vp = { 0, 0, 0, 0 }; float shake = 0; std::string msg;
 };
 
@@ -80,7 +95,7 @@ enum { B_A, B_B, B_X, B_Y, B_LB, B_RB, B_START, B_BACK, B_UP, B_DOWN, B_LEFT, B_
 struct Dev {
     int id = -1; SDL_GameController* gc = nullptr; std::string name; bool nintendo = false, wii = false;
     bool b[NB] = {}, pb[NB] = {}, hit[NB] = {}, pend[NB] = {};
-    V2 mv; bool analog = false; int navX = 0, navY = 0, nxLast = 0, nyLast = 0; float nxT = 0, nyT = 0;
+    V2 mv; bool analog = false; float lt = 0, rt = 0, ry = 0; /* triggers + right stick (pads) */ int navX = 0, navY = 0, nxLast = 0, nyLast = 0; float nxT = 0, nyT = 0;
     V2 mouse; bool mouseMoved = false, click = false, rclick = false; float rtPrev = 0;
 #ifdef IH_WII
     WiiRemote* wr = nullptr;

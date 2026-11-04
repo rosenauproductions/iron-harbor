@@ -109,7 +109,7 @@ static int navAxis(Dev& d, int axis, float dt) {
 static void readDevs(float dt) {
     int mx, my; SDL_GetMouseState(&mx, &my);
     for (auto& d : G.devs) {
-        memcpy(d.pb, d.b, sizeof d.b); memset(d.b, 0, sizeof d.b); d.mv = V2(); d.analog = false;
+        memcpy(d.pb, d.b, sizeof d.b); memset(d.b, 0, sizeof d.b); d.mv = V2(); d.analog = false; d.lt = d.rt = d.ry = 0;
         if (d.id == -1) {
             const Uint8* k = SDL_GetKeyboardState(nullptr);
             d.b[B_UP] = k[SDL_SCANCODE_W] || k[SDL_SCANCODE_UP]; d.b[B_DOWN] = k[SDL_SCANCODE_S] || k[SDL_SCANCODE_DOWN];
@@ -143,6 +143,8 @@ static void readDevs(float dt) {
             d.b[B_START] = Bt(SDL_CONTROLLER_BUTTON_START); d.b[B_BACK] = Bt(SDL_CONTROLLER_BUTTON_BACK);
             d.b[B_UP] = Bt(SDL_CONTROLLER_BUTTON_DPAD_UP); d.b[B_DOWN] = Bt(SDL_CONTROLLER_BUTTON_DPAD_DOWN); d.b[B_LEFT] = Bt(SDL_CONTROLLER_BUTTON_DPAD_LEFT); d.b[B_RIGHT] = Bt(SDL_CONTROLLER_BUTTON_DPAD_RIGHT);
             float rt = SDL_GameControllerGetAxis(d.gc, SDL_CONTROLLER_AXIS_TRIGGERRIGHT) / 32767.f; d.b[B_RT] = rt > 0.5f;
+            d.rt = clampf(rt, 0, 1); d.lt = clampf(SDL_GameControllerGetAxis(d.gc, SDL_CONTROLLER_AXIS_TRIGGERLEFT) / 32767.f, 0, 1);
+            d.ry = SDL_GameControllerGetAxis(d.gc, SDL_CONTROLLER_AXIS_RIGHTY) / 32767.f; if (std::fabs(d.ry) < 0.25f) d.ry = 0;
             V2 st(SDL_GameControllerGetAxis(d.gc, SDL_CONTROLLER_AXIS_LEFTX) / 32767.f, SDL_GameControllerGetAxis(d.gc, SDL_CONTROLLER_AXIS_LEFTY) / 32767.f);
             float m = len(st); if (m < 0.22f) st = V2(); else { st = st / m * clampf((m - 0.22f) / 0.73f, 0, 1); d.analog = true; d.mv = st; }
         }
@@ -282,7 +284,8 @@ static const char* HELP[] = {
     "WHEN ENEMY FLEETS MEET THEY FLASH: ENGAGE WITHIN 6 SECONDS OR SAIL ON.",
     "IN BATTLE EVERY SHIP STARTS STOPPED. YOU CONTROL ONE SHIP AT A TIME - PRESS NEXT SHIP TO CHOOSE.",
     "THE OTHERS SIT WHERE THEY ARE AND DON'T FIRE. IF YOUR SHIP SINKS, YOU TAKE OVER THE NEXT ONE.",
-    "HOLD FIRE TO AIM (YOUR SHIP STOPS DRIVING), RELEASE TO SHOOT. SHELLS LAND ON THE CROSSHAIR,",
+    "HOLD FIRE TO AIM (YOUR SHIP STOPS DRIVING), RELEASE TO SHOOT. ONE RETICLE PER GUN: RT/LT (WII +/-) OPEN OR TIGHTEN",
+    "THE GROUP. CARRIER PLANES LOCK ON A SHIP UNDER THE CROSSHAIR - A FAST, NIMBLE TARGET CAN STILL DODGE. SHELLS LAND ON THE CROSSHAIR,",
     "TORPEDOES HIT ANYTHING IN THEIR PATH. LAND HURTS. RETREAT TAKES 15 SECONDS.",
     "",
     "XBOX 360: STICK STEERS (POINT WHERE TO GO)  A FIRE/SELECT  B NEXT SHIP/BACK  Y ENGAGE/RETREAT",
@@ -558,7 +561,14 @@ static bool frame() {
     LOOP.fpsT += (float)dt; LOOP.fpsN++; if (LOOP.fpsT > 30) { printf("fps: %.1f (fleets %d, particles %d)\n", LOOP.fpsN / LOOP.fpsT, (int)G.fl.size(), (int)G.parts.size()); LOOP.fpsT = 0; LOOP.fpsN = 0; }
     readDevs((float)dt);
     // IH_BTEST (with IH_HUMAN IH_BATTLE): keyboard player fires, switches to the next ship, steers it, fires
-    if (getenv("IH_BTEST") && G.state == ST_GAME) { Dev* k = devById(-1); int f = G.frame;
+    // IH_BTEST=2: carrier strike locked on the nearest enemy ship, then the battleship aims with the group opened wide
+    if (getenv("IH_BTEST") && atoi(getenv("IH_BTEST")) == 2 && G.state == ST_GAME && G.bt[0].live) { Dev* k = devById(-1); int f = G.frame; Battle& b = G.bt[0];
+        auto lockOn = [&]() { float bd = 1e9f; for (auto& s : b.ships) if (s.side == 1 && bAlive(s) && dist(s.p, b.ships[b.active[0]].p) < bd) { bd = dist(s.p, b.ships[b.active[0]].p); b.cross[0] = s.p; } };
+        if (f == 59) for (auto& s : b.ships) if (s.side == 1) s.p.x -= 320;   // bring the enemy inside strike range
+        if (f >= 60 && f < 100) { k->b[B_A] = true; if (f > 62) lockOn(); }
+        if (f == 330) k->pend[B_B] = true;
+        if (f >= 340 && f < 420) { k->b[B_A] = true; k->b[B_RT] = f < 380; if (f > 342) { lockOn(); b.cross[0].x -= 60; } } }
+    else if (getenv("IH_BTEST") && G.state == ST_GAME) { Dev* k = devById(-1); int f = G.frame;
         if (f >= 60 && f < 110) { k->b[B_A] = true; k->mv = V2(0.2f, -0.6f); }
         if (f == 140) k->pend[B_B] = true;
         if (f >= 150 && f < 230) { k->b[B_RIGHT] = true; k->mv = V2(1, 0); }

@@ -4,4 +4,5 @@
   Copyright (C) 1997-2024 Sam Lantinga.
 - **Emscripten** runtime (browser build), MIT license.
 
-All art is drawn in code and all sound is synthesized; no outside art, fonts or sounds are used.
+In-game art is drawn in code and all sound is synthesized; no outside art, fonts or sounds are used.
+The logo / key art (`art/logo-key-art.png`, `art/logo-badge.png`) was supplied by Rosenau Productions (4 Nov 2026).

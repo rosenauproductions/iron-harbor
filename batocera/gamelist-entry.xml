@@ -6,6 +6,7 @@
 		<image>./images/IronHarbor-image.png</image>
 		<thumbnail>./images/IronHarbor-thumb.png</thumbnail>
 		<marquee>./images/IronHarbor-marquee.png</marquee>
+		<fanart>./images/IronHarbor-fanart.png</fanart>
 		<developer>Rosenau Productions</developer>
 		<genre>Strategy</genre>
 		<players>1-4</players>

@@ -18,6 +18,10 @@ static bool hullHit(const BShip& s, V2 q, float pad) {
     V2 d = q - s.p, f = bFwd(s); float lx = dot(d, f), ly = dot(d, perp(f));
     return std::fabs(lx) < SD[s.t].L * 0.5f + pad && std::fabs(ly) < SD[s.t].Wd * 0.5f + pad;
 }
+static int shipUnder(const Battle& b, int side, V2 q, float pad) {
+    for (int i = 0; i < (int)b.ships.size(); i++) if (b.ships[i].side != side && bAlive(b.ships[i]) && hullHit(b.ships[i], q, pad)) return i;
+    return -1;
+}
 static int sideAlive(const Battle& b, int sd) { int n = 0; for (auto& s : b.ships) if (s.side == sd && bAlive(s)) n++; return n; }
 static float sideHp(const Battle& b, int sd) { float h = 0; for (auto& s : b.ships) if (s.side == sd && bAlive(s)) h += G.side[s.owner].ship[s.ship].hp; return h; }
 static float sidePower(const Battle& b, int sd) { float h = 0; for (auto& s : b.ships) if (s.side == sd && bAlive(s)) h += G.side[s.owner].ship[s.ship].hp * SD[s.t].dmg / SD[s.t].reload; return h; }
@@ -84,14 +88,79 @@ static void bDamage(Battle& b, int bi, int k, float dmg, bool aground = false) {
     } else rumbleSide(s.owner, 90);
 }
 
-static void fire(Battle& b, int bi, int k, V2 at) {
-    BShip& s = b.ships[k]; const SDef& d = SD[s.t];
-    V2 from = s.p + bFwd(s) * (d.L * 0.25f);
+// where each mount's shot lands around the aim point: a tight group laid out across the line of fire
+static V2 reticleOffset(int t, int i, V2 dir, float spr = 1) {
+    int n = MOUNTS[t].n; V2 side = perp(dir) * spr; dir = dir * spr;
+    if (SD[t].torp) return side * ((i - (n - 1) * 0.5f) * 26);          // torpedoes: side by side
+    if (n == 2) return side * (i ? 15.f : -15.f);
+    if (n == 3) return i == 0 ? dir * 14 : dir * -9 + side * (i == 1 ? -16.f : 16.f);   // battleship: a triangle
+    return V2();
+}
+static V2 mountPos(const BShip& s, int i) {
+    const Mount& m = MOUNTS[s.t].m[i]; V2 f = bFwd(s);
+    return s.p + f * (m.x * SD[s.t].L) + perp(f) * (m.y * SD[s.t].Wd);
+}
+// carrier aircraft: roll down the deck, take off, fly to the target (or chase the locked ship), bomb, fly back and land
+static const float PLANE_SPEED = 270, PLANE_TURN = 2.6f;
+static void stepPlane(Battle& b, int bi, Shot& sh, float dt) {
+    BShip& cv = b.ships[sh.shooter]; const SDef& d = SD[cv.t]; sh.t += dt;
+    auto steer = [&](V2 goal, float spd) {
+        float want = std::atan2(goal.y - sh.p.y, goal.x - sh.p.x);
+        sh.ang += clampf(angDiff(sh.ang, want), -PLANE_TURN * dt, PLANE_TURN * dt);
+        sh.spd += (spd - sh.spd) * std::min(1.f, dt * 2); sh.p += fromAng(sh.ang) * sh.spd * dt;
+    };
+    if (sh.st == 0) {   // the deck run
+        if (!bAlive(cv)) { sh.dead = true; return; }
+        float k = clampf(sh.t / 0.8f, 0, 1); V2 f = bFwd(cv);
+        V2 a = mountPos(cv, sh.mount), z = cv.p + f * (d.L * 0.55f) + perp(f) * (MOUNTS[cv.t].m[sh.mount].y * d.Wd);
+        sh.p = a + (z - a) * (k * k); sh.ang = cv.ang; sh.spd = cv.spd + 40 + 230 * k; sh.alt = std::max(0.f, (k - 0.7f) / 0.3f) * 0.25f;
+        if (k >= 1) { sh.st = 1; AU.play(SND_TORP, 0.25f, 0, 1.8f, 0); }
+        return;
+    }
+    sh.alt = std::min(1.f, sh.alt + dt * 0.8f);
+    if (sh.st == 1) {
+        if (sh.tgt >= 0 && !bAlive(b.ships[sh.tgt])) sh.tgt = -1;   // the target sank: bomb where it was
+        V2 goal = sh.tgt >= 0 ? b.ships[sh.tgt].p + b.ships[sh.tgt].v * 0.25f : sh.to;
+        if (sh.tgt >= 0) sh.to = b.ships[sh.tgt].p;
+        steer(goal, PLANE_SPEED);
+        if (dist(sh.p, goal) < 26 || sh.t > 20) {
+            int hit = sh.tgt >= 0 ? sh.tgt : shipUnder(b, sh.side, sh.p, 8);
+            if (sh.tgt >= 0) {   // a locked target can still dodge: the faster and nimbler it is moving, the better its chance
+                const BShip& t = b.ships[sh.tgt]; const SDef& td = SD[t.t];
+                float speed = clampf(std::fabs(t.spd) / (td.knots * BKN), 0, 1);
+                float dodge = clampf(speed * (0.25f + 0.35f * td.accel) * (0.5f + 0.5f * clampf(td.turn / 1.6f, 0, 1)) + 0.05f, 0.05f, 0.6f);
+                if (R.f() < dodge) { hit = -1; sh.p += fromAng(R.range(0, 6.28f)) * 28; printf("battle %d: %s dodged a plane (%.0f%%)\n", bi, td.shortName, dodge * 100); }
+            }
+            printf("battle %d: P%d plane %s\n", bi, b.ships[sh.shooter].owner + 1, hit >= 0 ? (std::string("hit the ") + SD[b.ships[hit].t].shortName).c_str() : "missed");
+            if (hit >= 0) bDamage(b, bi, hit, sh.dmg);
+            else if (bLandDist(b, sh.p) < 0) sparks(bi, sh.p, 8, Col(200, 180, 120), 60);
+            else { splash(bi, sh.p, 12); AU.play(SND_SPLASH, 0.3f, 0, 1.1f); }
+            ring(bi, sh.p, 3, 30, Col(255, 200, 120), 0.4f);
+            sh.st = 2; sh.t = 0;
+        }
+        return;
+    }
+    // home: line up behind the carrier and land on the deck; with the carrier gone, the plane ditches
+    if (!bAlive(cv)) { steer(sh.p + fromAng(sh.ang) * 100, PLANE_SPEED); if (sh.t > 3) { splash(bi, sh.p, 8); sh.dead = true; } return; }
+    V2 f = bFwd(cv), deck = cv.p - f * (d.L * 0.2f);
+    steer(dist(sh.p, deck) > 160 ? deck - f * 120 : deck, dist(sh.p, deck) < 140 ? 150 : PLANE_SPEED);
+    if (dist(sh.p, deck) < 140) sh.alt = std::max(0.f, sh.alt - dt * 1.6f);
+    if (dist(sh.p, deck) < 24 || sh.t > 25) { sh.dead = true; AU.play(SND_UI, 0.3f); printf("battle %d: P%d plane landed\n", bi, cv.owner + 1); }
+}
+static bool planesOut(const Battle& b, int k) { for (auto& sh : b.shots) if (sh.plane && sh.shooter == k && !sh.dead) return true; return false; }
+
+static void fire(Battle& b, int bi, int k, V2 at, float spr = 1) {
+    BShip& s = b.ships[k]; const SDef& d = SD[s.t]; int n = MOUNTS[s.t].n;
     V2 v = at - s.p; if (len(v) > d.range) at = s.p + norm(v) * d.range;
-    Shot sh; sh.side = s.side; sh.from = from; sh.to = at; sh.p = from; sh.dmg = d.dmg; sh.torp = d.torp; sh.range = d.range; sh.shooter = k;
-    if (d.torp) { sh.dir = norm(at - from); AU.play(SND_TORP, 0.5f); }
-    else { sh.dur = dist(from, at) / GUN_SPEED + 0.25f; AU.play(SND_GUN, 0.45f, 0, R.range(0.9f, 1.1f)); ring(bi, from, 2, 18, Col(255, 230, 160), 0.25f); }
-    b.shots.push_back(sh); s.reload = d.reload;
+    V2 dir = norm(at - s.p);
+    for (int i = 0; i < n; i++) {
+        Shot sh; sh.side = s.side; sh.from = mountPos(s, i); sh.to = at + reticleOffset(s.t, i, dir, spr); sh.p = sh.from;
+        sh.dmg = d.dmg / n; sh.torp = d.torp; sh.range = d.range; sh.shooter = k; sh.mount = i; sh.wait = i * (d.torp ? 0.18f : 0.11f);
+        if (s.t == T_CARRIER) { sh.plane = true; sh.tgt = shipUnder(b, s.side, at, 14); sh.wait = i * 0.55f; sh.ang = s.ang; }   // crosshair on a ship: the planes go for that ship
+        else if (d.torp) sh.dir = norm(sh.to - sh.from); else sh.dur = dist(sh.from, sh.to) / GUN_SPEED + 0.25f;
+        b.shots.push_back(sh);
+    }
+    s.reload = d.reload;
 }
 
 // --- one ship's helm: a human's controls or the CPU's
@@ -166,7 +235,7 @@ static void humanAim(Battle& b, int bi, int sd, const Helm& h, float dt) {
     for (int k = 0; k < (int)b.ships.size(); k++) {
         BShip& s = b.ships[k]; if (s.side != sd || !bAlive(s) || !controlled(b, k) || s.reload > 0) continue;
         if (dist(s.p, b.cross[sd]) > SD[s.t].range) continue;   // out of this ship's range: it holds fire
-        fire(b, bi, k, b.cross[sd]); fired++;
+        fire(b, bi, k, b.cross[sd], b.spread[sd]); fired++;
     }
     if (!fired) AU.play(SND_ERR, 0.4f);
     printf("battle %d: P%d fired %d ship%s (%s)\n", bi, G.fl[b.fl[sd]].owner + 1, fired, fired == 1 ? "" : "s", SD[b.ships[b.active[sd]].t].shortName);
@@ -206,6 +275,10 @@ static void stepBattle(int bi, float dt) {
             if (pr(*dv, B_B) || pr(*dv, B_RB)) { nextActive(b, sd, 1); AU.play(SND_UI, 0.5f); }
             if (pr(*dv, B_LB)) { nextActive(b, sd, -1); AU.play(SND_UI, 0.5f); }
             if (h.tele) AU.play(SND_UI, 0.4f);
+            {   // open / tighten the salvo group: triggers or right stick on pads; + / - on Wii remotes and T / F on the keyboard
+                float dz = dv->gc ? (dv->rt - dv->lt - dv->ry) : ((dv->b[B_RT] ? 1.f : 0.f) - (dv->b[B_X] ? 1.f : 0.f));
+                b.spread[sd] = clampf(b.spread[sd] + dz * 1.4f * dt, 0.3f, 3.0f);
+            }
             if (pr(*dv, B_Y)) {
                 if (b.retreat[sd] < 0) { b.retreat[sd] = 15; AU.play(SND_KLAXON, 0.4f); toast(S, "RETREAT IN 15 S - Y AGAIN TO STAY"); }
                 else { b.retreat[sd] = -1; AU.play(SND_UI_OK, 0.5f); toast(S, "RETREAT CANCELLED"); }
@@ -228,6 +301,7 @@ static void stepBattle(int bi, float dt) {
     for (int k = 0; k < (int)b.ships.size(); k++) {
         BShip& s = b.ships[k]; const SDef& d = SD[s.t];
         s.flash = std::max(0.f, s.flash - dt * 3); s.reload -= dt;
+        if (s.t == T_CARRIER && planesOut(b, k)) s.reload = std::max(s.reload, 0.5f);   // waits for its planes
         if (!bAlive(s)) { s.sinkT += dt; s.spd *= std::pow(0.3f, dt); s.p += bFwd(s) * s.spd * dt; continue; }
         if (b.overT >= 0) s.thr = std::min(s.thr, 0.4f);
         float maxS = d.knots * BKN, want = s.thr * maxS;
@@ -257,6 +331,18 @@ static void stepBattle(int bi, float dt) {
     // shots
     for (auto& sh : b.shots) {
         if (sh.dead) continue;
+        if (sh.wait > 0) {
+            sh.wait -= dt;
+            BShip& src = b.ships[sh.shooter];
+            if (bAlive(src)) { V2 np = mountPos(src, sh.mount); if (!sh.plane) sh.to += np - sh.from; sh.from = np; sh.p = np; sh.ang = src.ang; if (sh.torp) sh.dir = norm(sh.to - sh.from); }
+            if (sh.wait > 0) continue;
+            if (!bAlive(src)) { sh.dead = true; continue; }
+            if (sh.plane) AU.play(SND_LAUNCH, 0.3f, 0, 1.5f, 0);
+            else if (sh.torp) AU.play(SND_TORP, 0.4f, 0, R.range(0.9f, 1.1f), 0);
+            else { AU.play(SND_GUN, 0.4f, 0, R.range(0.88f, 1.12f), 0); ring(bi, sh.from, 2, 16, Col(255, 230, 160), 0.25f); addPart(bi, P_DOT, sh.from, V2(), 0.12f, Col(255, 220, 150), 9); }
+            sh.wait = 0; sh.t = 0;
+        }
+        if (sh.plane) { stepPlane(b, bi, sh, dt); continue; }
         if (!sh.torp) {
             sh.t += dt; float u = clampf(sh.t / sh.dur, 0, 1); sh.p = sh.from + (sh.to - sh.from) * u;
             if (u >= 1) {

@@ -8,7 +8,7 @@ Original naval strategy/battle game by Rosenau Productions for the Batocera box 
 
 | Ship | # | Knots | Handling | Armor | Weapon | Dmg | Range |
 |---|---|---|---|---|---|---|---|
-| Aircraft carrier | 1 | 30 | slow | 25 | gun | 10 | long |
+| Aircraft carrier | 1 | 30 | slow | 25 | 2 planes | 10 | longest (aircraft) |
 | Troop transport | 1 | 30 | sluggish | 25 | gun | 7 | very short |
 | Battleship | 2 | 35 | average | 30 | gun | 12 | long |
 | Submarine | 1 | 35 | quick | 15 | torpedo | 20 | very long |
@@ -25,7 +25,11 @@ Original naval strategy/battle game by Rosenau Productions for the Batocera box 
 - Contact: hostile fleets that come close flash for 6 s; either side can ENGAGE. Otherwise they pass.
 - Battle: zoomed view of that patch of sea (real islands). Every ship starts stopped. Each admiral (CPU too) controls ONE ship
   at a time; NEXT SHIP picks another. The others sit where they are and don't fire. If yours sinks, you take the next one.
-  Hold FIRE to aim (the ship stops driving), release to shoot. Shells land on the crosshair; torpedoes hit anything on their path.
+  Hold FIRE to aim (the ship stops driving), release to shoot. One shot per gun mount, each from its own turret:
+  battleship 3 (triangle), destroyer 2, carrier 2 planes, sub 2 bow tubes, PT 2 side tubes, others 1; salvo damage = the ship's damage.
+  The reticles show the group; RT/LT (right stick, Wii +/-, keyboard T/F) open or tighten it.
+  Carrier: planes roll down the deck, fly to the target, bomb, fly back and land; no new strike until both are back.
+  Crosshair on an enemy ship = TARGET LOCKED: the planes chase it, but a fast, nimble ship can still dodge (up to ~60%). Shells land on the crosshair; torpedoes hit anything on their path.
   Land: 12 HP every 2 s. RETREAT: 15 s alarm, then the fleet slips away.
 - Win: sail the carrier or the troop transport into an enemy harbor (any ship, once both are sunk). Captured = out.
   Free-for-all or 2v2 (P1+P3 vs P2+P4). Last admiral (or team) standing wins.

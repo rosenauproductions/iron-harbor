@@ -220,7 +220,7 @@ static void hullPts(int t, std::vector<V2>& o) {
     default: o = { V2(L * .5f, 0), V2(L * .25f, W * .5f), V2(-L * .42f, W * .46f), V2(-L * .5f, W * .3f), V2(-L * .5f, -W * .3f), V2(-L * .42f, -W * .46f), V2(L * .25f, -W * .5f) };
     }
 }
-static void drawShip(const BShip& s, const View& v, float u, bool active) {
+static void drawShip(const BShip& s, const View& v, float u, bool active, const V2* aimAt = nullptr, float aimSpread = 1, const bool* deckEmpty = nullptr) {
     const SDef& d = SD[s.t]; Col c = G.side[s.owner].col;
     float sink = s.sinkT < 0 ? 0 : clampf(s.sinkT / 2.2f, 0, 1); if (sink >= 1) return;
     Col cc = s.flash > 0 ? mixc(c, C_WHITE, s.flash) : c; cc = withA(cc, 1 - sink);
@@ -232,16 +232,32 @@ static void drawShip(const BShip& s, const View& v, float u, bool active) {
     G.cv.fillPoly(sp.data(), (int)sp.size(), withA(Col(cc.r / 4, cc.g / 4, cc.b / 4), (1 - sink) * 0.9f));
     G.cv.poly(sp.data(), (int)sp.size(), 1.8f * u, cc, 0.9f);
     float L = d.L, W = d.Wd;
-    auto turret = [&](float x, float dir) { V2 c0 = P(V2(x, 0)); G.cv.circle(c0, W * 0.28f * k, 1.2f * u, cc, 0.4f, 10); G.cv.line(c0, P(V2(x + dir * W * 0.7f, 0)), 1.6f * u, cc, 0.4f); };
+    // gun turrets and torpedo tubes: guns swing toward the crosshair while this ship is aiming
+    // the carrier has no turrets: planes parked on the deck stand in for its 'mounts' (gone while they're flying)
+    if (s.t == T_CARRIER) {
+        for (int i = 0; i < MOUNTS[s.t].n; i++) {
+            if (deckEmpty && deckEmpty[i]) continue;
+            const Mount& m = MOUNTS[s.t].m[i]; V2 c0 = P(V2(m.x * L, m.y * W)), f = fromAng(s.ang), sd = perp(f); float z = W * 0.32f * k;
+            G.cv.line(c0 + f * z, c0 - f * z * 0.9f, 1.4f * u, cc, 0.4f); G.cv.line(c0 + f * z * 0.15f + sd * z, c0 + f * z * 0.15f - sd * z, 1.4f * u, cc, 0.4f);
+        }
+    }
+    else for (int i = 0; i < MOUNTS[s.t].n; i++) {
+        const Mount& m = MOUNTS[s.t].m[i]; V2 c0 = P(V2(m.x * L, m.y * W));
+        if (d.torp) { G.cv.line(P(V2(m.x * L - L * 0.12f, m.y * W)), P(V2(m.x * L + L * 0.04f, m.y * W)), 2.2f * u, cc, 0.4f); continue; }
+        float ang = s.ang + (m.rest < 0 ? PI : 0);
+        if (aimAt) { V2 t = v.w2s(*aimAt + reticleOffset(s.t, i, norm(*aimAt - s.p), aimSpread)); ang = std::atan2(t.y - c0.y, t.x - c0.x); }
+        G.cv.circle(c0, std::max(W * 0.28f, 3.f) * k, 1.2f * u, cc, 0.4f, 10);
+        G.cv.line(c0, c0 + fromAng(ang) * (std::max(W * 0.75f, 7.f) * k), 1.8f * u, cc, 0.5f);
+    }
     switch (s.t) {
     case T_CARRIER: G.cv.dash(P(V2(L * .4f, 0)), P(V2(-L * .45f, 0)), 5 * k, 4 * k, 1 * u, withA(cc, 0.6f)); { V2 q[4] = { P(V2(L * .1f, -W * .5f)), P(V2(-L * .15f, -W * .5f)), P(V2(-L * .15f, -W * .3f)), P(V2(L * .1f, -W * .3f)) }; G.cv.poly(q, 4, 1.3f * u, cc, 0.4f); } break;
     case T_TRANSPORT: for (int i = 0; i < 3; i++) { float x = L * (0.25f - i * 0.17f); V2 q[4] = { P(V2(x, -W * .25f)), P(V2(x - L * .1f, -W * .25f)), P(V2(x - L * .1f, W * .25f)), P(V2(x, W * .25f)) }; G.cv.poly(q, 4, 1 * u, withA(cc, 0.7f), 0.3f); } { V2 q[4] = { P(V2(-L * .28f, -W * .35f)), P(V2(-L * .45f, -W * .35f)), P(V2(-L * .45f, W * .35f)), P(V2(-L * .28f, W * .35f)) }; G.cv.poly(q, 4, 1.3f * u, cc, 0.4f); } break;
-    case T_BATTLESHIP: turret(L * .3f, 1); turret(L * .15f, 1); turret(-L * .3f, -1); { V2 q[4] = { P(V2(L * .05f, -W * .3f)), P(V2(-L * .15f, -W * .3f)), P(V2(-L * .15f, W * .3f)), P(V2(L * .05f, W * .3f)) }; G.cv.poly(q, 4, 1.2f * u, cc, 0.4f); } break;
-    case T_DESTROYER: turret(L * .28f, 1); turret(-L * .32f, -1); G.cv.circle(P(V2(0, 0)), W * .22f * k, 1 * u, cc, 0.3f, 8); G.cv.circle(P(V2(-L * .12f, 0)), W * .22f * k, 1 * u, cc, 0.3f, 8); break;
+    case T_BATTLESHIP: { V2 q[4] = { P(V2(L * .05f, -W * .3f)), P(V2(-L * .15f, -W * .3f)), P(V2(-L * .15f, W * .3f)), P(V2(L * .05f, W * .3f)) }; G.cv.poly(q, 4, 1.2f * u, cc, 0.4f); } break;
+    case T_DESTROYER: G.cv.circle(P(V2(0, 0)), W * .22f * k, 1 * u, cc, 0.3f, 8); G.cv.circle(P(V2(-L * .12f, 0)), W * .22f * k, 1 * u, cc, 0.3f, 8); break;
     case T_SUB: G.cv.circle(P(V2(L * .08f, 0)), W * .35f * k, 1.2f * u, cc, 0.4f, 10); break;
     case T_PT: G.cv.line(P(V2(0, -W * .25f)), P(V2(-L * .3f, -W * .25f)), 1 * u, cc, 0.3f); G.cv.line(P(V2(0, W * .25f)), P(V2(-L * .3f, W * .25f)), 1 * u, cc, 0.3f); break;
-    case T_LAYER: turret(L * .3f, 1); for (int i = 0; i < 4; i++) G.cv.disc(P(V2(-L * (0.2f + i * 0.07f), -W * .25f)), 2 * k, cc, 6), G.cv.disc(P(V2(-L * (0.2f + i * 0.07f), W * .25f)), 2 * k, cc, 6); break;
-    case T_SWEEPER: turret(L * .3f, 1); G.cv.line(P(V2(-L * .5f, 0)), P(V2(-L * .9f, -W * 1.4f)), 1 * u, withA(cc, 0.5f), 0.2f); G.cv.line(P(V2(-L * .5f, 0)), P(V2(-L * .9f, W * 1.4f)), 1 * u, withA(cc, 0.5f), 0.2f); break;
+    case T_LAYER: for (int i = 0; i < 4; i++) G.cv.disc(P(V2(-L * (0.2f + i * 0.07f), -W * .25f)), 2 * k, cc, 6), G.cv.disc(P(V2(-L * (0.2f + i * 0.07f), W * .25f)), 2 * k, cc, 6); break;
+    case T_SWEEPER: G.cv.line(P(V2(-L * .5f, 0)), P(V2(-L * .9f, -W * 1.4f)), 1 * u, withA(cc, 0.5f), 0.2f); G.cv.line(P(V2(-L * .5f, 0)), P(V2(-L * .9f, W * 1.4f)), 1 * u, withA(cc, 0.5f), 0.2f); break;
     }
     if (sink > 0) return;
     // label + armor bar
@@ -267,8 +283,26 @@ static void drawBattle(int bi, float u) {
     }
     for (size_t i = 0; i < b.land.size(); i++) drawLand(b.land[i], b.landC[i], v, u * 1.2f, true);
     G.cv.rectLine(v.o.x, v.o.y, BW * v.s, BH * v.s, 2 * u, Col(80, 160, 220, 160), 0.4f);
-    for (auto& s : b.ships) drawShip(s, v, u, controlled(b, (int)(&s - &b.ships[0])) && !G.side[s.owner].cpu);
+    for (auto& s : b.ships) { int k = (int)(&s - &b.ships[0]); bool c = controlled(b, k) && !G.side[s.owner].cpu;
+        bool gone[3] = { false, false, false }; for (auto& sh : b.shots) if (sh.plane && sh.shooter == k && sh.wait <= 0) gone[sh.mount] = true;
+        drawShip(s, v, u, c, c && b.aiming[s.side] ? &b.cross[s.side] : nullptr, b.spread[s.side], gone); }
+    auto planeShape = [&](V2 c, float a, float sz, Col col, float w, float glow) {
+        V2 f = fromAng(a), sd = perp(f);
+        G.cv.line(c + f * sz, c - f * sz * 0.9f, w, col, glow);                                  // fuselage
+        G.cv.line(c + f * sz * 0.15f + sd * sz, c + f * sz * 0.15f - sd * sz, w, col, glow);    // wings
+        G.cv.line(c - f * sz * 0.8f + sd * sz * 0.4f, c - f * sz * 0.8f - sd * sz * 0.4f, w, col, glow);   // tail
+    };
+    for (auto& sh : b.shots) if (sh.plane && sh.wait <= 0) {   // shadows first, under everything in the air
+        V2 g = v.w2s(sh.p) + V2(1, 0.8f) * (sh.alt * 22 * v.s); planeShape(g, sh.ang, 9 * v.s, Col(0, 0, 0, 110), 2.4f * u, 0);
+    }
     for (auto& sh : b.shots) {
+        if (sh.wait > 0) continue;
+        if (sh.plane) {
+            Col pc = G.side[b.ships[sh.shooter].owner].col; V2 c = v.w2s(sh.p); float sz = (8 + 5 * sh.alt) * v.s;
+            planeShape(c, sh.ang, sz, mixc(pc, C_WHITE, 0.45f), 1.8f * u, 0.7f);
+            if (sh.st == 1 && sh.alt > 0.5f) G.cv.line(c - fromAng(sh.ang) * sz, c - fromAng(sh.ang) * sz * 2.6f, 1 * u, withA(C_WHITE, 0.25f), 0.2f);
+            continue;
+        }
         if (sh.torp) { V2 a = v.w2s(sh.p), t0 = v.w2s(sh.p - sh.dir * 40); G.cv.line(t0, a, 1.5f * u, Col(220, 240, 255, 140), 0.4f); G.cv.line(a - (a - t0) * 0.2f, a, 3 * u, C_WHITE, 0.6f); }
         else {
             float k = clampf(sh.t / sh.dur, 0, 1), hgt = std::sin(k * PI) * dist(sh.from, sh.to) * 0.18f;
@@ -281,15 +315,27 @@ static void drawBattle(int bi, float u) {
     for (int sd = 0; sd < 2; sd++) {
         int k = b.active[sd]; if (k < 0) continue; BShip& s = b.ships[k]; Side& S = G.side[s.owner]; if (S.cpu) continue;
         if (b.aiming[sd]) {
-            V2 c = v.w2s(b.cross[sd]); bool ready = false;
-            for (int j = 0; j < (int)b.ships.size(); j++) {
-                BShip& q = b.ships[j]; if (q.side != sd || !bAlive(q) || !controlled(b, j)) continue;
-                V2 sp = v.w2s(q.p); bool inR = dist(q.p, b.cross[sd]) <= SD[q.t].range; if (inR && q.reload <= 0) ready = true;
-                G.cv.circle(sp, SD[q.t].range * v.s, 1 * u, withA(S.col, 0.25f), 0.2f, 64);
-                G.cv.dash(sp, c, 6 * u, 6 * u, 1 * u, withA(inR ? S.col : C_DIM, inR ? 0.6f : 0.25f), G.time * 30);
+            V2 c = v.w2s(b.cross[sd]); bool inR = dist(s.p, b.cross[sd]) <= SD[s.t].range, ready = inR && s.reload <= 0;
+            Col rc = ready ? S.col : C_BAD; V2 dir = norm(b.cross[sd] - s.p);
+            G.cv.circle(v.w2s(s.p), SD[s.t].range * v.s, 1 * u, withA(S.col, 0.25f), 0.2f, 64);
+            for (int i = 0; i < MOUNTS[s.t].n; i++) {
+                V2 r = v.w2s(b.cross[sd] + reticleOffset(s.t, i, dir, b.spread[sd])), from = v.w2s(mountPos(s, i));
+                G.cv.dash(from, r, 5 * u, 6 * u, 1 * u, withA(rc, 0.45f), G.time * 30);
+                float rr = (SD[s.t].torp ? 7 : 8) * u;
+                G.cv.circle(r, rr, 1.6f * u, rc, 0.8f, 14);
+                for (int q = 0; q < 4; q++) { V2 dd = fromAng(q * PI / 2 + PI / 4); G.cv.line(r + dd * rr * 0.45f, r + dd * rr * 1.35f, 1.4f * u, rc, 0.6f); }
             }
-            float r = 12 * u; G.cv.circle(c, r, 1.8f * u, ready ? S.col : C_BAD, 0.9f, 16);
-            for (int q = 0; q < 4; q++) { V2 d = fromAng(q * PI / 2); G.cv.line(c + d * r * 0.4f, c + d * r * 1.6f, 1.8f * u, S.col, 0.7f); }
+            if (MOUNTS[s.t].n > 1) G.cv.circle(c, (14 + 16 * b.spread[sd]) * v.s + 10 * u, 1 * u, withA(rc, 0.35f), 0.3f, 28);   // the group
+            std::string lbl = std::to_string(MOUNTS[s.t].n) + (s.t == T_CARRIER ? " PLANES" : SD[s.t].torp ? (MOUNTS[s.t].n > 1 ? " TUBES" : " TUBE") : (MOUNTS[s.t].n > 1 ? " GUNS" : " GUN"));
+            if (s.t == T_CARRIER) {
+                int lk = shipUnder(b, sd, b.cross[sd], 14);
+                if (lk >= 0) {   // locked: brackets around the target ship
+                    V2 tp = v.w2s(b.ships[lk].p); float rr = SD[b.ships[lk].t].L * 0.6f * v.s + 8 * u;
+                    for (int q = 0; q < 4; q++) G.cv.arc(tp, rr, q * PI / 2 - 0.35f, q * PI / 2 + 0.35f, 2.2f * u, C_WARN, 0.9f);
+                    lbl += " - TARGET LOCKED";
+                } else if (planesOut(b, k)) lbl += " - PLANES OUT";
+            }
+            text(lbl, c.x + 36 * u, c.y - 6 * u, 10 * u, withA(rc, 0.8f));
         }
     }
     // header and per-side status
@@ -305,10 +351,11 @@ static void drawBattle(int bi, float u) {
         if (k >= 0 && !S.cpu) {
             {
                 BShip& s = b.ships[k]; const SDef& d = SD[s.t];
-                text(std::string(d.name) + "  " + (d.torp ? "TORPEDO" : "GUNS") + "  (OTHERS STOPPED)", x, y, 12 * u, S.col, al);
-                text(std::string(s.reload > 0 ? "RELOADING" : "READY") + "   ENGINE " + std::to_string(s.telegraph) + "/3", x, y + 18 * u, 11 * u, s.reload > 0 ? C_DIM : C_GOOD, al);
+                text(std::string(d.name) + "  " + (s.t == T_CARRIER ? "AIR STRIKE" : d.torp ? "TORPEDOES" : "GUNS") + "  (OTHERS STOPPED)", x, y, 12 * u, S.col, al);
+                text(std::string(s.t == T_CARRIER && planesOut(b, k) ? "PLANES OUT" : s.reload > 0 ? "RELOADING" : "READY") + "   ENGINE " + std::to_string(s.telegraph) + "/3", x, y + 18 * u, 11 * u, s.reload > 0 ? C_DIM : C_GOOD, al);
             }
-            text("HOLD " + std::string(btnName(owner, B_A)) + " AIM+FIRE  " + btnName(owner, B_B) + " NEXT SHIP  " + btnName(owner, B_Y) + " RETREAT", x, y + 36 * u, 9 * u, withA(S.col, 0.65f), al);
+            { Dev* dd = sideDev(owner); std::string sp = dd && dd->gc ? (dd->nintendo ? "ZR/ZL" : "RT/LT") : dd && dd->wii ? "+/-" : "T/F";
+              text("HOLD " + std::string(btnName(owner, B_A)) + " AIM+FIRE  " + sp + " SPREAD  " + btnName(owner, B_B) + " NEXT SHIP  " + btnName(owner, B_Y) + " RETREAT", x, y + 36 * u, 9 * u, withA(S.col, 0.65f), al); }
         } else if (S.cpu) text("CPU " + std::string(DIFFN[S.diff]), x, y + 18 * u, 11 * u, withA(S.col, 0.7f), al);
         if (b.retreat[sd] >= 0) text("RETREATING " + std::to_string((int)std::ceil(b.retreat[sd])), x, vp.y + 40 * u, 13 * u, std::fmod(G.time * 3, 1.f) < 0.6f ? C_WARN : withA(C_WARN, 0.4f), al);
         if (S.toastT > 0 && !S.cpu) text(S.toast, x, vp.y + 60 * u, 11 * u, withA(S.col, std::min(1.f, S.toastT * 2)), al);
