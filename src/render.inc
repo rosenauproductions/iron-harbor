@@ -267,7 +267,7 @@ static void drawBattle(int bi, float u) {
     }
     for (size_t i = 0; i < b.land.size(); i++) drawLand(b.land[i], b.landC[i], v, u * 1.2f, true);
     G.cv.rectLine(v.o.x, v.o.y, BW * v.s, BH * v.s, 2 * u, Col(80, 160, 220, 160), 0.4f);
-    for (auto& s : b.ships) drawShip(s, v, u, (&s - &b.ships[0]) == b.active[s.side] && !G.side[s.owner].cpu);
+    for (auto& s : b.ships) drawShip(s, v, u, controlled(b, (int)(&s - &b.ships[0])) && !G.side[s.owner].cpu);
     for (auto& sh : b.shots) {
         if (sh.torp) { V2 a = v.w2s(sh.p), t0 = v.w2s(sh.p - sh.dir * 40); G.cv.line(t0, a, 1.5f * u, Col(220, 240, 255, 140), 0.4f); G.cv.line(a - (a - t0) * 0.2f, a, 3 * u, C_WHITE, 0.6f); }
         else {
@@ -281,10 +281,14 @@ static void drawBattle(int bi, float u) {
     for (int sd = 0; sd < 2; sd++) {
         int k = b.active[sd]; if (k < 0) continue; BShip& s = b.ships[k]; Side& S = G.side[s.owner]; if (S.cpu) continue;
         if (b.aiming[sd]) {
-            V2 c = v.w2s(b.cross[sd]), sp = v.w2s(s.p);
-            G.cv.circle(sp, SD[s.t].range * v.s, 1 * u, withA(S.col, 0.3f), 0.2f, 64);
-            G.cv.dash(sp, c, 6 * u, 6 * u, 1 * u, withA(S.col, 0.6f), G.time * 30);
-            float r = 12 * u; G.cv.circle(c, r, 1.8f * u, s.reload <= 0 ? S.col : C_BAD, 0.9f, 16);
+            V2 c = v.w2s(b.cross[sd]); bool ready = false;
+            for (int j = 0; j < (int)b.ships.size(); j++) {
+                BShip& q = b.ships[j]; if (q.side != sd || !bAlive(q) || !controlled(b, j)) continue;
+                V2 sp = v.w2s(q.p); bool inR = dist(q.p, b.cross[sd]) <= SD[q.t].range; if (inR && q.reload <= 0) ready = true;
+                G.cv.circle(sp, SD[q.t].range * v.s, 1 * u, withA(S.col, 0.25f), 0.2f, 64);
+                G.cv.dash(sp, c, 6 * u, 6 * u, 1 * u, withA(inR ? S.col : C_DIM, inR ? 0.6f : 0.25f), G.time * 30);
+            }
+            float r = 12 * u; G.cv.circle(c, r, 1.8f * u, ready ? S.col : C_BAD, 0.9f, 16);
             for (int q = 0; q < 4; q++) { V2 d = fromAng(q * PI / 2); G.cv.line(c + d * r * 0.4f, c + d * r * 1.6f, 1.8f * u, S.col, 0.7f); }
         }
     }
@@ -299,11 +303,16 @@ static void drawBattle(int bi, float u) {
         int owner = sd ? o1 : o0; Side& S = G.side[owner]; int k = b.active[sd];
         float x = sd ? vp.x + vp.w - 14 * u : vp.x + 14 * u; int al = sd ? 2 : 0; float y = vp.y + vp.h - 54 * u;
         if (k >= 0 && !S.cpu) {
-            BShip& s = b.ships[k]; const SDef& d = SD[s.t];
-            text(std::string(d.name) + "  " + (d.torp ? "TORPEDO" : "GUNS"), x, y, 12 * u, S.col, al);
-            std::string st = s.reload > 0 ? "RELOADING" : "READY"; std::string eng = "ENGINE " + std::to_string(s.telegraph) + "/3";
-            text(st + "   " + eng, x, y + 18 * u, 11 * u, s.reload > 0 ? C_DIM : C_GOOD, al);
-            text("HOLD " + std::string(btnName(owner, B_A)) + " AIM+FIRE  " + btnName(owner, B_B) + " NEXT SHIP  " + btnName(owner, B_Y) + " RETREAT", x, y + 36 * u, 9 * u, withA(S.col, 0.65f), al);
+            if (b.fleetMode[sd]) {
+                int n = 0, rdy = 0, tel = 0; for (int j = 0; j < (int)b.ships.size(); j++) { BShip& q = b.ships[j]; if (q.side == sd && bAlive(q)) { n++; if (q.reload <= 0) rdy++; tel = q.telegraph; } }
+                text("WHOLE FLEET (" + std::to_string(n) + (n == 1 ? " SHIP)" : " SHIPS)"), x, y, 12 * u, S.col, al);
+                text(std::to_string(rdy) + "/" + std::to_string(n) + " READY   ENGINE " + std::to_string(tel) + "/3", x, y + 18 * u, 11 * u, rdy ? C_GOOD : C_DIM, al);
+            } else {
+                BShip& s = b.ships[k]; const SDef& d = SD[s.t];
+                text(std::string(d.name) + "  " + (d.torp ? "TORPEDO" : "GUNS") + "  (OTHERS HOLD)", x, y, 12 * u, S.col, al);
+                text(std::string(s.reload > 0 ? "RELOADING" : "READY") + "   ENGINE " + std::to_string(s.telegraph) + "/3", x, y + 18 * u, 11 * u, s.reload > 0 ? C_DIM : C_GOOD, al);
+            }
+            text("HOLD " + std::string(btnName(owner, B_A)) + " AIM+FIRE  " + btnName(owner, B_B) + " FLEET/NEXT SHIP  " + btnName(owner, B_Y) + " RETREAT", x, y + 36 * u, 9 * u, withA(S.col, 0.65f), al);
         } else if (S.cpu) text("CPU " + std::string(DIFFN[S.diff]), x, y + 18 * u, 11 * u, withA(S.col, 0.7f), al);
         if (b.retreat[sd] >= 0) text("RETREATING " + std::to_string((int)std::ceil(b.retreat[sd])), x, vp.y + 40 * u, 13 * u, std::fmod(G.time * 3, 1.f) < 0.6f ? C_WARN : withA(C_WARN, 0.4f), al);
         if (S.toastT > 0 && !S.cpu) text(S.toast, x, vp.y + 60 * u, 11 * u, withA(S.col, std::min(1.f, S.toastT * 2)), al);

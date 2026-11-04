@@ -71,7 +71,7 @@ struct BShip { int side, owner, fleet, ship, t; V2 p, v; float ang, spd, thr = 0
 struct Shot { int side; V2 from, to, p, dir; float t = 0, dur = 1, dmg, range, gone = 0; bool torp, dead = false; int shooter; };
 struct Battle {
     bool live = false; int fl[2]; V2 center; std::vector<BShip> ships; std::vector<Shot> shots; std::vector<std::vector<V2>> land; std::vector<V2> landC;
-    int active[2] = { -1, -1 }; V2 cross[2]; bool aiming[2] = { false, false }; float retreat[2] = { -1, -1 }; float t = 0, overT = -1; int winner = -1; int fled = -1;
+    int active[2] = { -1, -1 }; bool fleetMode[2] = { true, true }; /* fleetMode: a human steers every ship at once; else only ships[active] */ V2 cross[2]; bool aiming[2] = { false, false }; float retreat[2] = { -1, -1 }; float t = 0, overT = -1; int winner = -1; int fled = -1;
     SDL_Rect vp = { 0, 0, 0, 0 }; float shake = 0; std::string msg;
 };
 

@@ -280,13 +280,14 @@ static const char* HELP[] = {
     "SEND A FLEET INTO YOUR OWN HARBOR TO DOCK: FULL REPAIRS, SHIPS BACK IN PORT. 3 TIMES PER GAME.",
     "",
     "WHEN ENEMY FLEETS MEET THEY FLASH: ENGAGE WITHIN 6 SECONDS OR SAIL ON.",
-    "IN BATTLE YOU STEER ONE SHIP; THE OTHERS FIGHT ON THEIR OWN. SWITCH SHIPS ANY TIME.",
+    "IN BATTLE YOU START WITH THE WHOLE FLEET: EVERY SHIP STEERS AND FIRES TOGETHER. PRESS NEXT SHIP",
+    "TO TAKE ONE SHIP ALONE (THE OTHERS SIT STILL), AGAIN FOR THE NEXT, AND PAST THE LAST BACK TO THE FLEET.",
     "HOLD FIRE TO AIM (YOUR SHIP STOPS DRIVING), RELEASE TO SHOOT. SHELLS LAND ON THE CROSSHAIR,",
     "TORPEDOES HIT ANYTHING IN THEIR PATH. LAND HURTS. RETREAT TAKES 15 SECONDS.",
     "",
-    "XBOX 360: STICK STEERS (POINT WHERE TO GO)  A FIRE/SELECT  B NEXT SHIP/BACK  Y ENGAGE/RETREAT",
+    "XBOX 360: STICK STEERS (POINT WHERE TO GO)  A FIRE/SELECT  B FLEET/NEXT SHIP  Y ENGAGE/RETREAT",
     "          X MINES  RT SWEEP  LB/RB FLEETS  D-PAD = RUDDER + ENGINE TELEGRAPH",
-    "WII REMOTE (SIDEWAYS): D-PAD RUDDER/ENGINE  2 FIRE/SELECT  1 NEXT SHIP/BACK  A ENGAGE/RETREAT",
+    "WII REMOTE (SIDEWAYS): D-PAD RUDDER/ENGINE  2 FIRE/SELECT  1 FLEET/NEXT SHIP  A ENGAGE/RETREAT",
     "          - MINES  + SWEEP  B NEXT FLEET  HOME PAUSE.  PRESS 1+2 ON THE TITLE OR LOBBY TO CONNECT",
     "KEYBOARD: ARROWS  SPACE  BACKSPACE  R  F  T  Q/E  ESC  (MOUSE CLICKS WORK ON THE MAP)",
 };
@@ -556,6 +557,12 @@ static bool frame() {
     if (dt > 0.1) dt = 0.1;
     LOOP.fpsT += (float)dt; LOOP.fpsN++; if (LOOP.fpsT > 30) { printf("fps: %.1f (fleets %d, particles %d)\n", LOOP.fpsN / LOOP.fpsT, (int)G.fl.size(), (int)G.parts.size()); LOOP.fpsT = 0; LOOP.fpsN = 0; }
     readDevs((float)dt);
+    // IH_BTEST (with IH_HUMAN IH_BATTLE): keyboard player aims+fires as a fleet, takes one ship, steers it, fires alone
+    if (getenv("IH_BTEST") && G.state == ST_GAME) { Dev* k = devById(-1); int f = G.frame;
+        if (f >= 60 && f < 110) { k->b[B_A] = true; k->mv = V2(0.2f, -0.6f); }
+        if (f == 140) k->pend[B_B] = true;
+        if (f >= 150 && f < 230) { k->b[B_RIGHT] = true; k->mv = V2(1, 0); }
+        if (f >= 240 && f < 290) { k->b[B_A] = true; k->mv = V2(0.3f, -0.5f); } }
     // BACK + START on a pad (Batocera's HOTKEY + START) leaves the match
     for (auto& d : G.devs) if (d.gc && d.b[B_BACK] && d.b[B_START] && (pr(d, B_START) || pr(d, B_BACK))) { if (G.state == ST_GAME) quitToTitle(); else G.quit = true; usePresses(); }
     if (G.state == ST_GAME) {

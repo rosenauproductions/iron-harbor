@@ -8,7 +8,8 @@ Original game by Rosenau Productions. C++17 + SDL2, vector art drawn in code, sy
 - Playable start to finish: lobby (4 seats: admiral / CPU easy-normal-hard / open; free for all or 2v2; classic or random sea),
   strategy map, harbor menu, fleets, mines, sweeping, docking (3 repairs), contacts, battles, captures, results.
 - Maps: generator with mirrored islands (2 admirals west/east, 3-4 in the corners), checked so every harbor can reach every other.
-- Battles: the real islands of that patch of sea; one ship steered per admiral, the rest fight by themselves; hold to aim.
+- Battles: the real islands of that patch of sea. You command the whole fleet at once (one stick, one crosshair) or one ship
+  while the others sit; B / Wii 1 cycles FLEET -> each ship -> FLEET. Hold to aim. (4 Nov)
   Up to two battles at once (four admirals). The map pauses when no free human is left, else runs at half speed beside the battle.
 - Controllers: Xbox 360 pads (SDL; pads without a mapping get the xpad layout), Switch-style pads (button names by position),
   Wii remotes held sideways (direct 1+2 connect or Batocera-paired), keyboard + mouse. Wii remotes: LEDs show the seat
@@ -29,7 +30,7 @@ images in `roms/ports/images/`, entry from `batocera/gamelist-entry.xml`. Log: `
 ## Test switches (env)
 `IH_STATE=game IH_PLAYERS=n` (all CPU) · `IH_HUMAN=1` (P1 = keyboard) · `IH_TEAMS=1` · `IH_MAPRANDOM=1` · `IH_BATTLE=1` (instant battle)
 · `IH_MENU=1` (harbor menu open) · `IH_FAST=n` (steps per frame) · `IH_UNTILOVER=1` · `IH_MAXTIME=s` · `IH_SHOT=frame IH_SHOT_PATH=x.bmp`
-· `IH_WINDOW=WxH` · `IH_MUTE=1` · `IH_NOWII=1` · `IH_WIIFAKE=n` (simulated remotes that press 2 in the lobby) · `IH_LOBBY=1` · `IH_SEED=n` · `IH_SEED_RNG=n`.
+· `IH_WINDOW=WxH` · `IH_MUTE=1` · `IH_NOWII=1` · `IH_WIIFAKE=n` (simulated remotes that press 2 in the lobby) · `IH_LOBBY=1` · `IH_BTEST=1` (with IH_HUMAN IH_BATTLE: scripted fleet fire, ship switch, solo fire) · `IH_SEED=n` · `IH_SEED_RNG=n`.
 Headless: `xvfb-run -a -s "-screen 0 1920x1080x24" env IH_MUTE=1 SDL_AUDIODRIVER=dummy IH_NOWII=1 ... build/ih_test`.
 
 ## Next
